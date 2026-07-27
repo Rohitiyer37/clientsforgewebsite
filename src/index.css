@@ -69,6 +69,15 @@
   }
 }
 
+/* Wistia player: blurred swatch placeholder before the element defines */
+wistia-player[media-id="09hrzvtooo"]:not(:defined) {
+  background: center / contain no-repeat
+    url("https://fast.wistia.com/embed/medias/09hrzvtooo/swatch");
+  display: block;
+  filter: blur(5px);
+  padding-top: 56.25%;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
