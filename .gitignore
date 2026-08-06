@@ -1,2 +1,7 @@
 node_modules/
 dist/
+
+# Local env files. Commit .env.example instead.
+.env
+.env.local
+.env.*.local

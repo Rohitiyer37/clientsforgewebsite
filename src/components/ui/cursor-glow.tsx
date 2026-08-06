@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 
 const SIZE = 560
-// Lower = more lag (more "delay" trailing the cursor). 0.10–0.14 feels premium.
+// Lower = more lag (more "delay" trailing the cursor). 0.10 to 0.14 feels premium.
 const EASE = 0.12
 const FADE = 0.09
 

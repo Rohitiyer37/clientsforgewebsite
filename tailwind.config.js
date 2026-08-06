@@ -27,10 +27,17 @@ export default {
           DEFAULT: "#EDEDED",
           muted: "#A0A0A0",
         },
+        // Attribut product accent (warm coral / ember)
+        ember: {
+          light: "#FF8A5C",
+          DEFAULT: "#F2542D",
+          deep: "#B83A18",
+        },
       },
       fontFamily: {
         sans: ["'DM Sans'", "ui-sans-serif", "system-ui", "sans-serif"],
         display: ["'Space Grotesk'", "ui-sans-serif", "system-ui", "sans-serif"],
+        accent: ["'Instrument Serif'", "Georgia", "ui-serif", "serif"],
       },
       backgroundImage: {
         "gold-gradient": "linear-gradient(180deg, #E8C078 0%, #8B6F2E 100%)",
@@ -61,6 +68,14 @@ export default {
           from: { opacity: "0", transform: "translateY(12px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-8px)" },
+        },
+        "ember-pulse": {
+          "0%, 100%": { opacity: "0.45", transform: "scale(1)" },
+          "50%": { opacity: "0.75", transform: "scale(1.05)" },
+        },
       },
       animation: {
         "orb-drift": "orb-drift 12s ease-in-out infinite",
@@ -69,6 +84,8 @@ export default {
         marquee: "marquee 55s linear infinite",
         "marquee-reverse": "marquee 55s linear infinite reverse",
         "fade-in": "fade-in 0.8s ease-out forwards",
+        float: "float 6s ease-in-out infinite",
+        "ember-pulse": "ember-pulse 4s ease-in-out infinite",
       },
     },
   },

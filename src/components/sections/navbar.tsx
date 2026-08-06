@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react"
+import { Link } from "react-router-dom"
 import { motion } from "framer-motion"
 
 import { buttonVariants } from "@/components/ui/button"
 import { CAL_ATTRS } from "@/lib/cal"
 import { cn } from "@/lib/utils"
 
-const links = [
+/** Items with `to` are routes, items with `href` are in page anchors. */
+const links: { label: string; href?: string; to?: string }[] = [
   { label: "How it works", href: "#process" },
   { label: "Attribution", href: "#attribution" },
   { label: "Results", href: "#results" },
+  { label: "Attribut", to: "/attribut" },
 ]
 
 export function Navbar() {
@@ -44,15 +47,25 @@ export function Navbar() {
         </a>
 
         <div className="hidden items-center gap-8 justify-self-center md:flex">
-          {links.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              className="text-[14px] text-fg-muted transition-colors hover:text-fg"
-            >
-              {l.label}
-            </a>
-          ))}
+          {links.map((l) =>
+            l.to ? (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="text-[14px] text-fg-muted transition-colors hover:text-fg"
+              >
+                {l.label}
+              </Link>
+            ) : (
+              <a
+                key={l.href}
+                href={l.href}
+                className="text-[14px] text-fg-muted transition-colors hover:text-fg"
+              >
+                {l.label}
+              </a>
+            ),
+          )}
         </div>
 
         <a
