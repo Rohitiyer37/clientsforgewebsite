@@ -10,6 +10,7 @@ import WorkWithMe from "@/pages/work-with-me"
 const Attribut = lazy(() => import("@/pages/attribut"))
 const AttributTerms = lazy(() => import("@/pages/attribut-terms"))
 const AttributPrivacy = lazy(() => import("@/pages/attribut-privacy"))
+const IdeationScorer = lazy(() => import("@/pages/ideation-scorer"))
 
 /** Route changes should start at the top rather than keeping the old offset. */
 function ScrollToTop() {
@@ -57,6 +58,7 @@ export default function App() {
             <Route path="/attribut" element={<Attribut />} />
             <Route path="/attribut/terms" element={<AttributTerms />} />
             <Route path="/attribut/privacy" element={<AttributPrivacy />} />
+            <Route path="/ideationscorer" element={<IdeationScorer />} />
           </Routes>
         </Suspense>
       </div>
