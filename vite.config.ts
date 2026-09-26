@@ -9,4 +9,11 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Local development only: forward API calls to `netlify dev` (port 8888),
+  // which runs the Netlify Functions. Production serves both from one origin.
+  server: {
+    proxy: {
+      "/api": { target: "http://localhost:8888", changeOrigin: false },
+    },
+  },
 })

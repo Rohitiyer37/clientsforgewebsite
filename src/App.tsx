@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from "react"
-import { Route, Routes, useLocation } from "react-router-dom"
+import { Navigate, Route, Routes, useLocation } from "react-router-dom"
 
 import { initCalEmbed } from "@/lib/cal"
 import Home from "@/pages/home"
@@ -11,6 +11,17 @@ const Attribut = lazy(() => import("@/pages/attribut"))
 const AttributTerms = lazy(() => import("@/pages/attribut-terms"))
 const AttributPrivacy = lazy(() => import("@/pages/attribut-privacy"))
 const IdeationScorer = lazy(() => import("@/pages/ideation-scorer"))
+
+// Client dashboard. Split out so none of it ships to marketing visitors.
+const DashboardLayout = lazy(() => import("@/pages/dashboard/layout"))
+const DashboardHome = lazy(() => import("@/pages/dashboard/home"))
+const DashboardAutomations = lazy(() => import("@/pages/dashboard/automations"))
+const AutomationBuilder = lazy(() => import("@/pages/dashboard/automation-builder"))
+
+// Public legal pages required for Meta App Review.
+const PrivacyPolicy = lazy(() => import("@/pages/legal/privacy"))
+const TermsOfService = lazy(() => import("@/pages/legal/terms"))
+const DataDeletionStatus = lazy(() => import("@/pages/legal/data-deletion"))
 
 /** Route changes should start at the top rather than keeping the old offset. */
 function ScrollToTop() {
@@ -59,6 +70,16 @@ export default function App() {
             <Route path="/attribut/terms" element={<AttributTerms />} />
             <Route path="/attribut/privacy" element={<AttributPrivacy />} />
             <Route path="/ideationscorer" element={<IdeationScorer />} />
+            <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="automations" element={<DashboardAutomations />} />
+              <Route path="automations/new" element={<AutomationBuilder />} />
+              <Route path="automations/:id" element={<AutomationBuilder />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Route>
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/data-deletion" element={<DataDeletionStatus />} />
           </Routes>
         </Suspense>
       </div>
