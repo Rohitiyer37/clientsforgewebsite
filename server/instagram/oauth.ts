@@ -47,3 +47,30 @@ export function verifyOAuthState(
 export function clearOAuthStateCookie(): string {
   return clearCookie(OAUTH_STATE_COOKIE, COOKIE_PATH)
 }
+
+/** Where the OAuth callback sends the client afterwards. Allowlisted. */
+export const RETURN_DESTINATIONS = {
+  automations: "/dashboard/automations",
+  analytics: "/dashboard/analytics/instagram",
+} as const
+export type ReturnDestination = keyof typeof RETURN_DESTINATIONS
+const RETURN_COOKIE = "cf_ig_return"
+
+export function parseReturnDestination(value: string | null): ReturnDestination {
+  return value === "analytics" ? "analytics" : "automations"
+}
+
+export function returnCookie(dest: ReturnDestination): string {
+  return serializeCookie(RETURN_COOKIE, dest, {
+    maxAgeSeconds: OAUTH_STATE_TTL_SECONDS,
+    path: COOKIE_PATH,
+  })
+}
+
+export function readReturnDestination(req: Request): ReturnDestination {
+  return parseReturnDestination(parseCookies(req)[RETURN_COOKIE] ?? null)
+}
+
+export function clearReturnCookie(): string {
+  return clearCookie(RETURN_COOKIE, COOKIE_PATH)
+}

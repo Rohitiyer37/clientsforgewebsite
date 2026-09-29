@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 import { z } from "zod"
 
+import type { MessagingEvent } from "../analytics/dm"
+
 /**
  * Verifies X-Hub-Signature-256 ("sha256=<hex>") against the raw request bytes
  * with the Instagram app secret, in constant time. The HMAC must be computed
@@ -129,6 +131,75 @@ export function parseCommentEvents(body: unknown): ParsedComment[] {
         mediaId: str(v.media?.id),
         mediaProductType: v.media?.media_product_type ?? null,
         parentId: str(v.parent_id),
+      })
+    }
+  }
+  return out
+}
+
+// -------------------------------------------------------------- messaging
+
+const MessagingValue = z.object({
+  sender: z.object({ id: z.union([z.string(), z.number()]).optional() }).partial().optional(),
+  recipient: z.object({ id: z.union([z.string(), z.number()]).optional() }).partial().optional(),
+  timestamp: z.union([z.number(), z.string()]).optional(),
+  message: z
+    .object({
+      is_echo: z.boolean().optional(),
+      is_deleted: z.boolean().optional(),
+    })
+    .passthrough()
+    .optional(),
+})
+
+const MessagingEntry = z.object({
+  id: z.union([z.string(), z.number()]),
+  messaging: z.array(z.unknown()).optional(),
+  field: z.string().optional(),
+  value: z.unknown().optional(),
+  changes: z.array(Change).optional(),
+})
+
+/** Meta sends seconds in some Instagram examples and milliseconds in others. */
+function toMs(ts: number | string | undefined): number | null {
+  if (ts === undefined) return null
+  const n = typeof ts === "string" ? Number(ts) : ts
+  if (!Number.isFinite(n) || n <= 0) return null
+  return n < 1e12 ? n * 1000 : n
+}
+
+/**
+ * Extracts messaging events: entry.messaging[] (the documented shape) and a
+ * "messages" field in entry.field/value or entry.changes[]. Only metadata is
+ * kept. Message text and attachments are never copied out of the payload.
+ */
+export function parseMessagingEvents(body: unknown): MessagingEvent[] {
+  const payload = Payload.safeParse(body)
+  if (!payload.success || payload.data.object !== "instagram") return []
+
+  const out: MessagingEvent[] = []
+  for (const rawEntry of payload.data.entry) {
+    const entry = MessagingEntry.safeParse(rawEntry)
+    if (!entry.success) continue
+    const igUserId = String(entry.data.id)
+
+    const values: unknown[] = [...(entry.data.messaging ?? [])]
+    if (entry.data.field === "messages") values.push(entry.data.value)
+    for (const change of entry.data.changes ?? []) {
+      if (change.field === "messages") values.push(change.value)
+    }
+
+    for (const raw of values) {
+      const v = MessagingValue.safeParse(raw)
+      if (!v.success) continue
+      out.push({
+        igUserId,
+        senderId: str(v.data.sender?.id),
+        recipientId: str(v.data.recipient?.id),
+        timestampMs: toMs(v.data.timestamp),
+        hasMessage: v.data.message !== undefined,
+        isEcho: v.data.message?.is_echo === true,
+        isDeleted: v.data.message?.is_deleted === true,
       })
     }
   }

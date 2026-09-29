@@ -23,9 +23,11 @@ export default function PrivacyPolicy() {
     >
       <LegalSection title="Who this applies to">
         <p>
-          It covers two groups: our clients, who sign in to the Clientsforge workspace and connect
-          an Instagram professional account, and people who comment on a client's Instagram posts,
-          whose comments our automation reads and responds to on the client's behalf.
+          It covers three groups: our clients, who sign in to the Clientsforge workspace and
+          connect an Instagram professional account; people who comment on a client's Instagram
+          posts, whose comments our automation reads and responds to on the client's behalf; and
+          people who send a client a direct message, whose conversation metadata (not the message
+          itself) we record for the client's analytics.
         </p>
       </LegalSection>
 
@@ -56,7 +58,26 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <strong>What we did:</strong> whether we replied publicly, whether a direct message
-            was sent, and any error.
+            was sent and when, and any error.
+          </li>
+        </ul>
+        <p>For Content Analytics, with the client's permission, we receive and store:</p>
+        <ul>
+          <li>
+            <strong>Account insights:</strong> daily totals Instagram reports for the account, such
+            as views, reach, likes, comments, shares, saves, follows, contact button taps, and the
+            follower count.
+          </li>
+          <li>
+            <strong>Post insights:</strong> for the client's posts and reels, the post ID, type,
+            caption, link, thumbnail, publish time, and totals such as views, reach, likes,
+            comments, shares, saves, and average watch time.
+          </li>
+          <li>
+            <strong>Direct message metadata:</strong> when someone messages the client, the
+            sender's Instagram scoped user ID and the time of their first message, and whether an
+            automation messaged them first. We do not store message text or attachments, and we do
+            not read them.
           </li>
         </ul>
       </LegalSection>
@@ -70,6 +91,10 @@ export default function PrivacyPolicy() {
             did.
           </li>
           <li>To prevent duplicate messages and to retry messages that failed.</li>
+          <li>
+            To show the client analytics about their own account: totals over time, their best
+            performing reels, and how many new conversations their content started.
+          </li>
         </ul>
         <p>
           We do not use Instagram data for advertising, we do not build profiles of commenters,
@@ -89,6 +114,11 @@ export default function PrivacyPolicy() {
             connected. Disconnecting deletes the token immediately.
           </li>
           <li>
+            <strong>Analytics</strong> (account and post insights, and direct message metadata)
+            are kept so the client can see their history, until the client asks us to delete them
+            or removes Clientsforge in Instagram, which deletes them.
+          </li>
+          <li>
             <strong>Workspace sign in sessions</strong> expire 180 days after sign in, or
             immediately on sign out.
           </li>
@@ -100,7 +130,9 @@ export default function PrivacyPolicy() {
         <ul>
           <li>Supabase, for the database.</li>
           <li>Netlify, for hosting and running our servers.</li>
-          <li>Meta, whose Instagram API we use to read comments and send replies.</li>
+          <li>
+            Meta, whose Instagram API we use to read comments, send replies, and read insights.
+          </li>
         </ul>
       </LegalSection>
 
@@ -108,7 +140,8 @@ export default function PrivacyPolicy() {
         <p>
           <strong>If you connected an account:</strong> go to Instagram, then Settings, then
           Website permissions, then Apps and websites, and remove Clientsforge. Instagram notifies
-          us, and we delete your account details, token, automations, and comment records. You
+          us, and we delete your account details, token, automations, comment records, and
+          analytics. You
           receive a confirmation code to check the status at{" "}
           <Link className="text-gold-light underline" to="/data-deletion">
             clientsforge.com/data-deletion
@@ -116,7 +149,7 @@ export default function PrivacyPolicy() {
           .
         </p>
         <p>
-          <strong>If you commented on a client's post</strong>, or you want anything else
+          <strong>If you commented on or messaged a client</strong>, or you want anything else
           deleted, email <Placeholder>{LEGAL_CONTACT_EMAIL}</Placeholder> from any address with
           your Instagram username. We delete matching records within 30 days and confirm by email.
         </p>

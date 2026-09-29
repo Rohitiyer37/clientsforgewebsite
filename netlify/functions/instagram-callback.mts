@@ -1,4 +1,4 @@
-import type { Config } from "@netlify/functions"
+import type { Config, Context } from "@netlify/functions"
 
 import { encryptSecret } from "../../server/crypto"
 import { db } from "../../server/db"
@@ -9,23 +9,35 @@ import {
   instagramClient,
   pauseAutomationsForAccount,
 } from "../../server/instagram/accounts"
+import { syncAccount } from "../../server/instagram/analytics-sync"
+import { INSIGHTS_SCOPE, REQUIRED_SCOPES } from "../../server/instagram/client"
 import { MetaApiError } from "../../server/instagram/errors"
-import { clearOAuthStateCookie, verifyOAuthState } from "../../server/instagram/oauth"
+import {
+  RETURN_DESTINATIONS,
+  clearOAuthStateCookie,
+  clearReturnCookie,
+  readReturnDestination,
+  verifyOAuthState,
+  type ReturnDestination,
+} from "../../server/instagram/oauth"
 import { log } from "../../server/log"
 import { getCurrentClient } from "../../server/session"
 
 const PROFESSIONAL_ACCOUNT_TYPES = new Set(["BUSINESS", "MEDIA_CREATOR", "CREATOR"])
 
-function back(result: string): Response {
-  return redirect(`/dashboard/automations?ig=${encodeURIComponent(result)}`, [
+function backTo(dest: ReturnDestination, result: string): Response {
+  return redirect(`${RETURN_DESTINATIONS[dest]}?ig=${encodeURIComponent(result)}`, [
     clearOAuthStateCookie(),
+    clearReturnCookie(),
   ])
 }
 
-export default handle("instagram-callback", async (req: Request) => {
+export default handle("instagram-callback", async (req: Request, context: Context) => {
   const client = await getCurrentClient(req)
-  if (!client) return redirect("/dashboard", [clearOAuthStateCookie()])
+  if (!client) return redirect("/dashboard", [clearOAuthStateCookie(), clearReturnCookie()])
 
+  const dest = readReturnDestination(req)
+  const back = (result: string) => backTo(dest, result)
   const url = new URL(req.url)
 
   // The user cancelled or refused permissions on Instagram's screen.
@@ -60,11 +72,11 @@ export default handle("instagram-callback", async (req: Request) => {
       code,
     })
 
-    const missing = [
-      "instagram_business_basic",
-      "instagram_business_manage_comments",
-      "instagram_business_manage_messages",
-    ].filter((p) => short.permissions.length > 0 && !short.permissions.includes(p))
+    // Automations cannot work without these. Insights is optional: without
+    // it only Content Analytics is affected, and it shows a reconnect banner.
+    const missing = REQUIRED_SCOPES.filter(
+      (p) => short.permissions.length > 0 && !short.permissions.includes(p),
+    )
     if (missing.length > 0) {
       log.info("instagram_connect_missing_permissions", { clientId: client.id, missing })
       return back("permissions")
@@ -93,9 +105,10 @@ export default handle("instagram-callback", async (req: Request) => {
       return back("in_use")
     }
 
-    // Without this subscription Meta never sends comment webhooks, so a
-    // "connected" account would silently do nothing. Fail loudly instead.
-    await ig.subscribeToComments(long.accessToken)
+    // Without this subscription Meta never sends comment or message
+    // webhooks, so a "connected" account would silently do nothing. Fail
+    // loudly instead.
+    await ig.subscribeToWebhooks(long.accessToken)
 
     const previous = await getAccountForClient(database, client.id)
     const { data: saved, error: saveError } = await database
@@ -115,6 +128,7 @@ export default handle("instagram-callback", async (req: Request) => {
           token_refreshed_at: new Date().toISOString(),
           connected_at: new Date().toISOString(),
           status: "active",
+          granted_scopes: short.permissions.length > 0 ? short.permissions : null,
         },
         { onConflict: "client_id" },
       )
@@ -126,7 +140,43 @@ export default handle("instagram-callback", async (req: Request) => {
     // point at the old account's posts, so they must not run.
     if (previous && previous.ig_user_id !== profile.userId) {
       await pauseAutomationsForAccount(database, saved.id)
+      // Its stored analytics belong to the old account too.
+      const { error: resetError } = await database.rpc("reset_ig_analytics", {
+        p_account_id: saved.id,
+      })
+      if (resetError) throw new Error(`Failed to reset analytics: ${resetError.message}`)
     }
+
+    // DM tracking starts now (the messages subscription above succeeded).
+    // Insights access is re-checked by the first sync; if Instagram said the
+    // permission was left out, the banner shows at once.
+    const insightsGranted =
+      short.permissions.length === 0 || short.permissions.includes(INSIGHTS_SCOPE)
+    const { data: existingState, error: stateReadError } = await database
+      .from("ig_analytics_state")
+      .select("dm_tracking_started_at")
+      .eq("instagram_account_id", saved.id)
+      .maybeSingle()
+    if (stateReadError) throw new Error(`Analytics state lookup failed: ${stateReadError.message}`)
+    const { error: stateError } = await database.from("ig_analytics_state").upsert(
+      {
+        instagram_account_id: saved.id,
+        insights_status: insightsGranted ? "unknown" : "missing_permission",
+        dm_tracking_started_at: existingState?.dm_tracking_started_at ?? new Date().toISOString(),
+      },
+      { onConflict: "instagram_account_id" },
+    )
+    if (stateError) throw new Error(`Failed to save analytics state: ${stateError.message}`)
+
+    // First sync right away, after the redirect is sent. Without insights
+    // access it still seeds DM history, then records the missing permission.
+    context.waitUntil(
+      syncAccount(saved.id, "connect", { db: database }).then(
+        (r) => log.info("instagram_connect_sync", { clientId: client.id, outcome: r.outcome }),
+        (err: unknown) =>
+          log.error("instagram_connect_sync_failed", { clientId: client.id, error: err }),
+      ),
+    )
 
     log.info("instagram_connected", { clientId: client.id, accountId: saved.id })
     return back("connected")

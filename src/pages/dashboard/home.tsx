@@ -1,6 +1,13 @@
 import { Link } from "react-router-dom"
 import { motion } from "framer-motion"
-import { ArrowUpRight, BookOpen, Sparkles, Workflow, type LucideIcon } from "lucide-react"
+import {
+  ArrowUpRight,
+  BarChart3,
+  BookOpen,
+  Sparkles,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useClient } from "@/dashboard/session"
@@ -27,10 +34,10 @@ const cards: CardSpec[] = [
     badge: "Coming soon",
   },
   {
-    title: "Coming soon",
-    subtitle: "More tools are on the way.",
-    icon: Sparkles,
-    badge: "Coming soon",
+    title: "Content Analytics",
+    subtitle: "See how your content turns into followers and DMs.",
+    icon: BarChart3,
+    to: "/dashboard/analytics",
   },
   {
     title: "Coming soon",

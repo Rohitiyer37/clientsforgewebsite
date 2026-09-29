@@ -9,7 +9,7 @@ import { Footer } from "@/components/sections/footer"
  */
 export const LEGAL_CONTACT_EMAIL = "[CONTACT EMAIL]"
 export const LEGAL_ENTITY_NAME = "[LEGAL ENTITY NAME]"
-export const LEGAL_LAST_UPDATED = "26 September 2026"
+export const LEGAL_LAST_UPDATED = "28 September 2026"
 
 export function Placeholder({ children }: { children: ReactNode }) {
   return (

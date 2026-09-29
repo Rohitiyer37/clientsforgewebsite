@@ -1,5 +1,14 @@
 import type { MediaItem } from "../../shared/instagram"
+import type { BackfillThread } from "../analytics/dm"
 import { MetaApiError, parseMetaError } from "./errors"
+import {
+  parseAccountInsights,
+  parseConversations,
+  parseMediaInsights,
+  parseUsageHeaders,
+  type AccountMetricValue,
+  type ApiUsage,
+} from "./insights"
 
 /**
  * Typed client for the Instagram API with Instagram Login. Every Graph call in
@@ -15,11 +24,20 @@ const OAUTH_HOST = "https://api.instagram.com"
 const GRAPH_HOST = "https://graph.instagram.com"
 const DEFAULT_TIMEOUT_MS = 10_000
 
-export const INSTAGRAM_SCOPES = [
+/** What Automations cannot work without. A connection missing one fails. */
+export const REQUIRED_SCOPES = [
   "instagram_business_basic",
   "instagram_business_manage_comments",
   "instagram_business_manage_messages",
 ] as const
+
+/** Needed only by Content Analytics. Missing it shows a reconnect banner there. */
+export const INSIGHTS_SCOPE = "instagram_business_manage_insights"
+
+export const INSTAGRAM_SCOPES = [...REQUIRED_SCOPES, INSIGHTS_SCOPE] as const
+
+/** Webhook fields every connected account is subscribed to. */
+export const WEBHOOK_FIELDS = ["comments", "messages"] as const
 
 export interface InstagramProfile {
   /** Professional account ID. Matches entry.id in webhooks. */
@@ -73,6 +91,8 @@ export class InstagramClient {
       version: string
       timeoutMs?: number
       fetchImpl?: typeof fetch
+      /** Called after every response Meta sends, with its quota usage. */
+      onResponse?: (usage: ApiUsage) => void
     },
   ) {
     this.graph = `${GRAPH_HOST}/${options.version}`
@@ -100,6 +120,8 @@ export class InstagramClient {
         timedOut ? "Instagram did not respond in time" : "Could not reach Instagram",
       )
     }
+
+    this.options.onResponse?.(parseUsageHeaders(res.headers))
 
     const text = await res.text()
     let body: unknown = null
@@ -216,10 +238,13 @@ export class InstagramClient {
     }
   }
 
-  /** Subscribes this account to the comments webhook field. Required per account. */
-  async subscribeToComments(token: string): Promise<void> {
+  /**
+   * Subscribes this account to the comments and messages webhook fields.
+   * Required per account: without it Meta sends nothing for the account.
+   */
+  async subscribeToWebhooks(token: string): Promise<void> {
     const body = await this.request<{ success?: boolean }>(
-      `${this.graph}/me/subscribed_apps?subscribed_fields=comments`,
+      `${this.graph}/me/subscribed_apps?subscribed_fields=${WEBHOOK_FIELDS.join(",")}`,
       { method: "POST", token },
     )
     if (body.success !== true) {
@@ -239,10 +264,11 @@ export class InstagramClient {
   async listMedia(
     token: string,
     after?: string,
+    limit = 24,
   ): Promise<{ items: MediaItem[]; nextCursor: string | null }> {
     const url = new URL(`${this.graph}/me/media`)
     url.searchParams.set("fields", MEDIA_FIELDS)
-    url.searchParams.set("limit", "24")
+    url.searchParams.set("limit", String(limit))
     if (after) url.searchParams.set("after", after)
     const body = await this.request<{
       data: RawMedia[]
@@ -294,5 +320,61 @@ export class InstagramClient {
       },
     )
     return body.message_id ?? ""
+  }
+
+  // ------------------------------------------------------------ insights
+
+  async getFollowersCount(token: string): Promise<number | null> {
+    const body = await this.request<{ followers_count?: number }>(
+      `${this.graph}/me?fields=followers_count`,
+      { token },
+    )
+    return typeof body.followers_count === "number" ? body.followers_count : null
+  }
+
+  /**
+   * Account insights as totals over [since, until), in unix seconds. Every
+   * metric in one call must support the same breakdown, or Meta rejects the
+   * whole request.
+   */
+  async getAccountInsights(
+    token: string,
+    params: { metrics: readonly string[]; since: number; until: number; breakdown?: string },
+  ): Promise<Map<string, AccountMetricValue>> {
+    const url = new URL(`${this.graph}/me/insights`)
+    url.searchParams.set("metric", params.metrics.join(","))
+    url.searchParams.set("period", "day")
+    url.searchParams.set("metric_type", "total_value")
+    url.searchParams.set("since", String(params.since))
+    url.searchParams.set("until", String(params.until))
+    if (params.breakdown) url.searchParams.set("breakdown", params.breakdown)
+    return parseAccountInsights(await this.request<unknown>(url.toString(), { token }))
+  }
+
+  /** Lifetime insights for one media object. */
+  async getMediaInsights(
+    token: string,
+    mediaId: string,
+    metrics: readonly string[],
+  ): Promise<Map<string, number | null>> {
+    const url = new URL(`${this.graph}/${encodeURIComponent(mediaId)}/insights`)
+    url.searchParams.set("metric", metrics.join(","))
+    return parseMediaInsights(await this.request<unknown>(url.toString(), { token }))
+  }
+
+  /**
+   * One page of DM conversations with their participants and up to the 20
+   * newest messages' sender and time. Message text is not requested.
+   */
+  async listConversations(
+    token: string,
+    after?: string,
+  ): Promise<{ threads: BackfillThread[]; nextCursor: string | null }> {
+    const url = new URL(`${this.graph}/me/conversations`)
+    url.searchParams.set("platform", "instagram")
+    url.searchParams.set("fields", "participants,updated_time,messages.limit(20){created_time,from}")
+    url.searchParams.set("limit", "25")
+    if (after) url.searchParams.set("after", after)
+    return parseConversations(await this.request<unknown>(url.toString(), { token }))
   }
 }

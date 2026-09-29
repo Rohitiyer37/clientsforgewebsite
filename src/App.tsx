@@ -17,6 +17,8 @@ const DashboardLayout = lazy(() => import("@/pages/dashboard/layout"))
 const DashboardHome = lazy(() => import("@/pages/dashboard/home"))
 const DashboardAutomations = lazy(() => import("@/pages/dashboard/automations"))
 const AutomationBuilder = lazy(() => import("@/pages/dashboard/automation-builder"))
+const DashboardAnalytics = lazy(() => import("@/pages/dashboard/analytics"))
+const InstagramAnalytics = lazy(() => import("@/pages/dashboard/analytics-instagram"))
 
 // Public legal pages required for Meta App Review.
 const PrivacyPolicy = lazy(() => import("@/pages/legal/privacy"))
@@ -75,6 +77,8 @@ export default function App() {
               <Route path="automations" element={<DashboardAutomations />} />
               <Route path="automations/new" element={<AutomationBuilder />} />
               <Route path="automations/:id" element={<AutomationBuilder />} />
+              <Route path="analytics" element={<DashboardAnalytics />} />
+              <Route path="analytics/instagram" element={<InstagramAnalytics />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
             <Route path="/privacy" element={<PrivacyPolicy />} />

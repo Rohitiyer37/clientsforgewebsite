@@ -1,5 +1,6 @@
 import type { Config, Context } from "@netlify/functions"
 
+import { logRecordFailure, recordInboundMessages } from "../../server/analytics/record-dms"
 import { processEvents } from "../../server/automations/processor"
 import { safeEqual } from "../../server/crypto"
 import { db } from "../../server/db"
@@ -7,12 +8,13 @@ import { webhookEnv } from "../../server/env"
 import { instagramClient } from "../../server/instagram/accounts"
 import {
   parseCommentEvents,
+  parseMessagingEvents,
   parseWebhookJson,
   verifyWebhookSignature,
 } from "../../server/instagram/webhook"
 import { log } from "../../server/log"
 
-/** Meta's comment payloads are small; anything this large is not from Meta. */
+/** Meta's comment and message payloads are small; anything this large is not from Meta. */
 const MAX_BODY_BYTES = 512 * 1024
 
 function text(body: string, status: number): Response {
@@ -59,9 +61,22 @@ async function receive(req: Request, context: Context): Promise<Response> {
   }
 
   const comments = parseCommentEvents(body)
-  if (comments.length === 0) return text("EVENT_RECEIVED", 200)
+  const messages = parseMessagingEvents(body)
+  if (comments.length === 0 && messages.length === 0) return text("EVENT_RECEIVED", 200)
 
   const database = db()
+
+  // DMs only feed analytics, so they are recorded after the response.
+  if (messages.length > 0) {
+    const receivedAt = new Date()
+    context.waitUntil(
+      recordInboundMessages(database, messages, receivedAt).then(
+        (counts) => log.info("webhook_messages_recorded", { events: messages.length, ...counts }),
+        logRecordFailure,
+      ),
+    )
+  }
+  if (comments.length === 0) return text("EVENT_RECEIVED", 200)
 
   // Tag each event with its client up front, so the audit log is scoped even
   // if processing never runs.

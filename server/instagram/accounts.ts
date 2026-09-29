@@ -6,11 +6,12 @@ import { HttpError } from "../http"
 import { log } from "../log"
 import { InstagramClient } from "./client"
 import { MetaApiError } from "./errors"
+import type { ApiUsage } from "./insights"
 
 export type InstagramAccountRow = Row<"instagram_accounts">
 
-export function instagramClient(): InstagramClient {
-  return new InstagramClient({ version: instagramEnv().META_GRAPH_API_VERSION })
+export function instagramClient(onResponse?: (usage: ApiUsage) => void): InstagramClient {
+  return new InstagramClient({ version: instagramEnv().META_GRAPH_API_VERSION, onResponse })
 }
 
 export function decryptAccountToken(account: InstagramAccountRow): string {
