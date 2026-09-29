@@ -1,4 +1,4 @@
-import type { Config, Context } from "@netlify/functions"
+import type { Config } from "@netlify/functions"
 
 import { getSyncStatus } from "../../server/analytics/service"
 import { db } from "../../server/db"
@@ -7,10 +7,8 @@ import { requireActiveAccount } from "../../server/instagram/accounts"
 import {
   CONTINUATION_INTERVAL_SECONDS,
   REFRESH_INTERVAL_SECONDS,
-  runSync,
-  startSyncRun,
 } from "../../server/instagram/analytics-sync"
-import { log } from "../../server/log"
+import { startAndDispatch } from "../../server/jobs/sync-analytics"
 import { requireClient } from "../../server/session"
 
 /**
@@ -18,7 +16,7 @@ import { requireClient } from "../../server/session"
  * minutes per account. While the first backfill is still in progress, the
  * page may continue it once a minute instead.
  */
-export default handle("analytics-instagram-refresh", async (req: Request, context: Context) => {
+export default handle("analytics-instagram-refresh", async (req: Request) => {
   assertSameOrigin(req)
   const client = await requireClient(req)
   const database = db()
@@ -32,7 +30,7 @@ export default handle("analytics-instagram-refresh", async (req: Request, contex
   if (error) throw new Error(`Analytics state lookup failed: ${error.message}`)
   const continuing = !state?.backfill_completed_at
 
-  const start = await startSyncRun(
+  const start = await startAndDispatch(
     database,
     account.id,
     continuing ? "continuation" : "manual",
@@ -52,13 +50,6 @@ export default handle("analytics-instagram-refresh", async (req: Request, contex
     )
   }
 
-  if (start.outcome === "started") {
-    context.waitUntil(
-      runSync(start.runId, account.id, { db: database }).catch((err: unknown) =>
-        log.error("analytics_refresh_failed", { clientId: client.id, accountId: account.id, error: err }),
-      ),
-    )
-  }
   return json({ sync: await getSyncStatus(database, client.id) }, 202)
 })
 

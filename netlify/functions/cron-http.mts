@@ -2,19 +2,13 @@ import type { Config, Context } from "@netlify/functions"
 import { z } from "zod"
 
 import { db } from "../../server/db"
-import { appEnv, cronEnv } from "../../server/env"
 import { handle, json } from "../../server/http"
 import { instagramClient } from "../../server/instagram/accounts"
-import {
-  CONTINUATION_INTERVAL_SECONDS,
-  runSync,
-  startSyncRun,
-} from "../../server/instagram/analytics-sync"
+import { CONTINUATION_INTERVAL_SECONDS } from "../../server/instagram/analytics-sync"
 import { isAuthorizedCron } from "../../server/jobs/cron-auth"
 import { refreshExpiringTokens } from "../../server/jobs/refresh-tokens"
 import { cleanupOldRecords, retryPendingEvents } from "../../server/jobs/retry-events"
-import { dispatchAnalyticsSyncs } from "../../server/jobs/sync-analytics"
-import { log } from "../../server/log"
+import { startAndDispatch, syncAllAccounts } from "../../server/jobs/sync-analytics"
 
 const AccountParam = z.string().uuid()
 
@@ -44,29 +38,18 @@ export default handle("cron-http", async (req: Request, context: Context) => {
   if (context.params.job === "sync-analytics") {
     const accountParam = new URL(req.url).searchParams.get("account")
     if (accountParam === null) {
-      const summary = await dispatchAnalyticsSyncs(database, {
-        baseUrl: appEnv().APP_BASE_URL,
-        cronSecret: cronEnv().CRON_SECRET,
-      })
+      const summary = await syncAllAccounts(database, CONTINUATION_INTERVAL_SECONDS)
       return json({ job: "sync-analytics", ...summary })
     }
 
     const accountId = AccountParam.safeParse(accountParam)
     if (!accountId.success) return json({ error: "Invalid account" }, 400)
-    const start = await startSyncRun(
+    const start = await startAndDispatch(
       database,
       accountId.data,
-      "cron",
+      "manual",
       CONTINUATION_INTERVAL_SECONDS,
     )
-    if (start.outcome === "started") {
-      // Answer now so the dispatcher can move on; the sync runs after.
-      context.waitUntil(
-        runSync(start.runId, accountId.data, { db: database }).catch((err: unknown) =>
-          log.error("cron_sync_analytics_account_failed", { accountId: accountId.data, error: err }),
-        ),
-      )
-    }
     return json({ job: "sync-analytics", account: accountId.data, ...start }, 202)
   }
   return json({ error: "Unknown job" }, 404)

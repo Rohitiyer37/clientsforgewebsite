@@ -194,8 +194,8 @@ create index if not exists ig_sync_runs_running_idx
 -------------------------------------------------------------------------------
 
 -- Starts a sync run unless one is already running or the last one started
--- within p_min_interval. A run left "running" for 5 minutes belongs to a
--- crashed worker and is closed as failed first. Returns one row:
+-- within p_min_interval. A run left "running" for 12 minutes belongs to a
+-- killed worker (runs budget 10 minutes) and is closed as failed first. Returns one row:
 -- outcome 'started' (with run_id), 'busy', or 'throttled' (with
 -- retry_after_seconds).
 create or replace function public.start_ig_sync_run(
@@ -220,7 +220,7 @@ begin
       error = coalesce(error, 'The sync was interrupted before it finished.')
   where instagram_account_id = p_account_id
     and status = 'running'
-    and started_at < now() - interval '5 minutes';
+    and started_at < now() - interval '12 minutes';
 
   if exists (
     select 1 from public.ig_sync_runs

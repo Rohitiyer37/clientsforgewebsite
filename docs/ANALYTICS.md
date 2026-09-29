@@ -57,13 +57,17 @@ not report it, and the UI says "Not available". A stored 0 is always a real 0.
 ## 2. Data flow
 
 ```
-                      every 6 h                      Refresh button (15 min throttle)
- scheduled-sync-analytics ──▶ /api/cron/sync-analytics?account=… ◀── /api/analytics/instagram/refresh
-                                        │                                   │
-                                        ▼                                   ▼
-                          start_ig_sync_run (lock + throttle) ── run row in ig_sync_runs
-                                        │
-                                        ▼  context.waitUntil, 45 s budget
+   scheduled-sync-analytics (every 6 h)   /api/analytics/instagram/refresh   Instagram connect callback
+                        │                 (15 min throttle)                            │
+                        └───────────────────────┬──────────────────────────────────────┘
+                                                ▼
+                     start_ig_sync_run (lock + throttle) ── run row in ig_sync_runs
+                                                │  POST with CRON_SECRET
+                                                ▼
+             /api/internal/sync-analytics  (Netlify background function: 202 at once,
+                                             15 min limit, run budget 10 min)
+                                                │
+                                                ▼
                                runSync (server/instagram/analytics-sync.ts)
    1. subscribe comments+messages webhooks (once)       → ig_analytics_state.dm_tracking_started_at
    2. probe insights access (1 call)                     → insights_status ok | missing_permission
@@ -83,8 +87,13 @@ not report it, and the UI says "Not available". A stored 0 is always a real 0.
              service.ts reads stored rows only, compute.ts aggregates (pure, tested)
 ```
 
-A run that runs out of time leaves days without `fetched_at`; the next run
-continues from there. While the first backfill is unfinished, the open page
+Syncs run in a background function because a first backfill (about 190
+calls, and the Conversations API is slow) can outlast the 60 second limit of
+a normal function. Progress (permission status, DM tracking start, backfill
+cursor, each fetched day) is saved as it happens, so even a run that is cut
+off leaves accurate state. A run still "running" after 12 minutes is closed
+as failed by the next start. A run that runs out of time leaves days without
+`fetched_at`; the next run continues from there. While the first backfill is unfinished, the open page
 continues it about once a minute and polls `/api/analytics/instagram/status`.
 
 ## 3. Tables

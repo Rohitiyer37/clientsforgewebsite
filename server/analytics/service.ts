@@ -9,7 +9,11 @@ import type { Db } from "../db"
 import type { Row } from "../database.types"
 import { HttpError } from "../http"
 import { getAccountForClient } from "../instagram/accounts"
-import { availabilityMap, REFRESH_INTERVAL_SECONDS } from "../instagram/analytics-sync"
+import {
+  REFRESH_INTERVAL_SECONDS,
+  STALE_RUN_MS,
+  availabilityMap,
+} from "../instagram/analytics-sync"
 import { log } from "../log"
 import { FUNNEL_BENCHMARKS } from "./benchmarks"
 import {
@@ -105,9 +109,9 @@ export async function buildSyncStatus(
     .maybeSingle()
   if (error) throw new Error(`Sync run lookup failed: ${error.message}`)
 
-  // A run older than 5 minutes that never finished has crashed.
+  // A run older than the stale limit that never finished was killed.
   const running =
-    run?.status === "running" && now.getTime() - Date.parse(run.started_at) < 5 * 60 * 1000
+    run?.status === "running" && now.getTime() - Date.parse(run.started_at) < STALE_RUN_MS
   const backfillComplete = Boolean(state?.backfill_completed_at)
   let refreshAvailableAt: string | null = null
   if (run && backfillComplete) {

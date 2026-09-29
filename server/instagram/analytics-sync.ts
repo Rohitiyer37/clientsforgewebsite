@@ -35,6 +35,13 @@ const USAGE_BACKOFF_PCT = 80
 const MAX_MEDIA_PAGES = 20
 const MAX_CONVERSATION_PAGES = 40
 const DEFAULT_DEADLINE_MS = 45_000
+/**
+ * Budget for a run inside a Netlify background function (15 minute hard
+ * limit). Well short of it, so the run always closes itself cleanly.
+ */
+export const BACKGROUND_DEADLINE_MS = 10 * 60 * 1000
+/** A run still "running" after this long was killed and is treated as failed. */
+export const STALE_RUN_MS = 12 * 60 * 1000
 /** A client can trigger a sync once per 15 minutes per account. */
 export const REFRESH_INTERVAL_SECONDS = 15 * 60
 /** While the first backfill is still running, continuation runs may follow closely. */
@@ -252,11 +259,21 @@ export async function runSync(
     const state = await loadState(database, account.id)
     const availability = readAvailability(state.metric_availability)
     const stateUpdate: Partial<StateRow> = {}
+    // Progress is saved the moment it is known, so a run that is cut off
+    // still leaves the page with an accurate picture.
+    const saveState = async (fields: Partial<StateRow>) => {
+      Object.assign(stateUpdate, fields)
+      const { error } = await database
+        .from("ig_analytics_state")
+        .update(fields)
+        .eq("instagram_account_id", accountId)
+      if (error) throw new Error(`Saving sync state failed: ${error.message}`)
+    }
 
     // 1. Live DM tracking. Needs no insights permission, so it goes first.
     if (!state.dm_tracking_started_at) {
       const ok = await guard("Turning on DM tracking", () => ig.subscribeToWebhooks(token))
-      if (ok !== null) stateUpdate.dm_tracking_started_at = now().toISOString()
+      if (ok !== null) await saveState({ dm_tracking_started_at: now().toISOString() })
     }
 
     // 2. Probe insights access with one small request.
@@ -264,10 +281,10 @@ export async function runSync(
     const yesterday = addDays(today, -1)
     try {
       await ig.getAccountInsights(token, { metrics: ["views"], ...metaDayWindow(yesterday) })
-      stateUpdate.insights_status = "ok"
+      await saveState({ insights_status: "ok" })
     } catch (err) {
       if (err instanceof MetaApiError && err.kind === "permission") {
-        stateUpdate.insights_status = "missing_permission"
+        await saveState({ insights_status: "missing_permission" })
         control.insightsDenied = true
       } else if (err instanceof MetaApiError && err.kind === "token") {
         control.stop = new StopSync("token", err.message)
@@ -309,7 +326,10 @@ export async function runSync(
 
       // 5. Daily account metrics: recent days first, then the backfill.
       const startDate = state.backfill_start_date ?? addDays(today, -(BACKFILL_DAYS - 1))
-      if (!state.backfill_start_date) stateUpdate.backfill_start_date = startDate
+      await saveState({
+        backfill_start_date: startDate,
+        metric_availability: availability as unknown as Json,
+      })
       const pending = await datesToFetch(database, accountId, startDate, today)
       summary.daysRemaining = pending.length
 
@@ -325,7 +345,7 @@ export async function runSync(
         outOfTime,
       )
       if (summary.daysRemaining === 0 && !state.backfill_completed_at) {
-        stateUpdate.backfill_completed_at = now().toISOString()
+        await saveState({ backfill_completed_at: now().toISOString() })
       }
 
       // 6. Media and reel insights.
@@ -341,8 +361,10 @@ export async function runSync(
     if (!state.dm_backfill_completed_at && !outOfTime()) {
       const result = await backfillConversations(ig, token, account, state, database, guard, outOfTime)
       summary.conversationsSeeded = result.seeded
-      stateUpdate.dm_backfill_cursor = result.cursor
-      if (result.done) stateUpdate.dm_backfill_completed_at = now().toISOString()
+      await saveState({
+        dm_backfill_cursor: result.cursor,
+        ...(result.done ? { dm_backfill_completed_at: now().toISOString() } : {}),
+      })
     }
 
     const { error: reconcileError } = await database.rpc("reconcile_dm_attribution", {
@@ -734,16 +756,4 @@ async function backfillConversations(
       .eq("instagram_account_id", account.id)
   }
   return { seeded, cursor: cursor ?? null, done: false }
-}
-
-/** Starts and runs a sync. Returns why it did not run when it did not. */
-export async function syncAccount(
-  accountId: string,
-  trigger: SyncTrigger,
-  deps: RunSyncDeps & { minIntervalSeconds?: number | null },
-): Promise<StartResult & { summary?: SyncSummary }> {
-  const start = await startSyncRun(deps.db, accountId, trigger, deps.minIntervalSeconds ?? null)
-  if (start.outcome !== "started") return start
-  const summary = await runSync(start.runId, accountId, deps)
-  return { ...start, summary }
 }

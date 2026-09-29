@@ -1,4 +1,4 @@
-import type { Config, Context } from "@netlify/functions"
+import type { Config } from "@netlify/functions"
 
 import { encryptSecret } from "../../server/crypto"
 import { db } from "../../server/db"
@@ -9,7 +9,7 @@ import {
   instagramClient,
   pauseAutomationsForAccount,
 } from "../../server/instagram/accounts"
-import { syncAccount } from "../../server/instagram/analytics-sync"
+import { startAndDispatch } from "../../server/jobs/sync-analytics"
 import { INSIGHTS_SCOPE, REQUIRED_SCOPES } from "../../server/instagram/client"
 import { MetaApiError } from "../../server/instagram/errors"
 import {
@@ -32,7 +32,7 @@ function backTo(dest: ReturnDestination, result: string): Response {
   ])
 }
 
-export default handle("instagram-callback", async (req: Request, context: Context) => {
+export default handle("instagram-callback", async (req: Request) => {
   const client = await getCurrentClient(req)
   if (!client) return redirect("/dashboard", [clearOAuthStateCookie(), clearReturnCookie()])
 
@@ -168,15 +168,10 @@ export default handle("instagram-callback", async (req: Request, context: Contex
     )
     if (stateError) throw new Error(`Failed to save analytics state: ${stateError.message}`)
 
-    // First sync right away, after the redirect is sent. Without insights
+    // First sync right away, in the background worker. Without insights
     // access it still seeds DM history, then records the missing permission.
-    context.waitUntil(
-      syncAccount(saved.id, "connect", { db: database }).then(
-        (r) => log.info("instagram_connect_sync", { clientId: client.id, outcome: r.outcome }),
-        (err: unknown) =>
-          log.error("instagram_connect_sync_failed", { clientId: client.id, error: err }),
-      ),
-    )
+    const first = await startAndDispatch(database, saved.id, "connect", null)
+    log.info("instagram_connect_sync", { clientId: client.id, outcome: first.outcome })
 
     log.info("instagram_connected", { clientId: client.id, accountId: saved.id })
     return back("connected")

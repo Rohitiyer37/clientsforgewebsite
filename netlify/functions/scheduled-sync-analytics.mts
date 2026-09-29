@@ -1,8 +1,8 @@
 import type { Config } from "@netlify/functions"
 
 import { db } from "../../server/db"
-import { appEnv, cronEnv } from "../../server/env"
-import { dispatchAnalyticsSyncs } from "../../server/jobs/sync-analytics"
+import { CONTINUATION_INTERVAL_SECONDS } from "../../server/instagram/analytics-sync"
+import { syncAllAccounts } from "../../server/jobs/sync-analytics"
 import { log } from "../../server/log"
 
 /**
@@ -11,10 +11,7 @@ import { log } from "../../server/log"
  */
 export default async (): Promise<Response> => {
   try {
-    const summary = await dispatchAnalyticsSyncs(db(), {
-      baseUrl: appEnv().APP_BASE_URL,
-      cronSecret: cronEnv().CRON_SECRET,
-    })
+    const summary = await syncAllAccounts(db(), CONTINUATION_INTERVAL_SECONDS)
     log.info("cron_sync_analytics", summary)
   } catch (err) {
     log.error("cron_sync_analytics_failed", { error: err })

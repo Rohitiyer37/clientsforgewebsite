@@ -100,9 +100,9 @@ export class InstagramClient {
 
   private async request<T>(
     url: string,
-    init: RequestInit & { token?: string } = {},
+    init: RequestInit & { token?: string; timeoutMs?: number } = {},
   ): Promise<T> {
-    const { token, headers, ...rest } = init
+    const { token, headers, timeoutMs, ...rest } = init
     const h = new Headers(headers)
     if (token) h.set("Authorization", `Bearer ${token}`)
 
@@ -111,7 +111,7 @@ export class InstagramClient {
       res = await (this.options.fetchImpl ?? fetch)(url, {
         ...rest,
         headers: h,
-        signal: AbortSignal.timeout(this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs ?? this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       })
     } catch (err) {
       const timedOut = err instanceof Error && err.name === "TimeoutError"
@@ -375,6 +375,9 @@ export class InstagramClient {
     url.searchParams.set("fields", "participants,updated_time,messages.limit(20){created_time,from}")
     url.searchParams.set("limit", "25")
     if (after) url.searchParams.set("after", after)
-    return parseConversations(await this.request<unknown>(url.toString(), { token }))
+    // Nested message reads make this Instagram's slowest endpoint.
+    return parseConversations(
+      await this.request<unknown>(url.toString(), { token, timeoutMs: 30_000 }),
+    )
   }
 }
