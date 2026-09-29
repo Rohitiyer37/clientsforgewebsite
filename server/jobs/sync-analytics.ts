@@ -10,7 +10,11 @@ import { log } from "../log"
  * is handed its ID.
  */
 
-export const SYNC_WORKER_PATH = "/api/internal/sync-analytics"
+/**
+ * The worker's default Netlify address. Netlify does not route a custom
+ * `path` to background functions, so it is called here directly.
+ */
+export const SYNC_WORKER_PATH = "/.netlify/functions/sync-analytics-background"
 const DISPATCH_TIMEOUT_MS = 8_000
 const DISPATCH_CONCURRENCY = 5
 

@@ -38,11 +38,15 @@ describe("date math", () => {
     )
   })
 
-  it("builds a Meta day window, including the 23 hour spring forward day", () => {
-    const normal = metaDayWindow("2026-09-01")
-    expect(normal.until - normal.since).toBe(86400)
+  it("selects exactly one Meta bucket: just after the start, up to the end", () => {
+    const day = metaDayWindow("2026-09-25")
+    // The bucket for 25 Sep ends at Pacific midnight on 26 Sep (07:00 UTC).
+    expect(day.until).toBe(Date.parse("2026-09-26T07:00:00Z") / 1000)
+    // The previous day's bucket ends at 25 Sep 07:00 UTC, one second before since.
+    expect(day.since).toBe(Date.parse("2026-09-25T07:00:00Z") / 1000 + 1)
+    expect(day.until - day.since).toBe(86400 - 1)
     const spring = metaDayWindow("2026-03-08")
-    expect(spring.until - spring.since).toBe(23 * 3600)
+    expect(spring.until - spring.since).toBe(23 * 3600 - 1)
   })
 })
 

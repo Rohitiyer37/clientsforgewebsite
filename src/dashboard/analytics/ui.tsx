@@ -9,10 +9,7 @@ export const CHART = {
   /** Sparkline stroke and the accent hue. */
   line: "#E0B866",
   /** Funnel stages, an ordinal ramp: light at the top, darker down the funnel. */
-  stages: ["#F0D39A", "#E0B866", "#C9A24B", "#A8863C"] as const,
-  /** New DMs split. A categorical pair that passes the colorblind checks. */
-  organic: "#B38C3A",
-  automation: "#3A8FC4",
+  stages: ["#F0D39A", "#D4AE62", "#A8863C"] as const,
 }
 
 /**

@@ -88,10 +88,19 @@ export function startOfDayInZone(iso: string, tz: string): Date {
   return new Date(guess)
 }
 
-/** since/until (unix seconds) covering one Meta day. */
+/**
+ * since/until (unix seconds) selecting exactly one Meta day.
+ *
+ * Meta keys each daily bucket by its end_time, the Pacific midnight that ends
+ * the day, and a total_value request includes every bucket whose end_time is
+ * within [since, until] inclusive. A plain midnight to midnight window
+ * therefore catches two buckets. Starting one second after midnight leaves
+ * only the bucket that ends at `until`: the day asked for. Verified live on
+ * 29 September 2026: seven such windows summed exactly to one 7 day request.
+ */
 export function metaDayWindow(iso: string): { since: number; until: number } {
   return {
-    since: Math.floor(startOfDayInZone(iso, META_TIMEZONE).getTime() / 1000),
+    since: Math.floor(startOfDayInZone(iso, META_TIMEZONE).getTime() / 1000) + 1,
     until: Math.floor(startOfDayInZone(addDays(iso, 1), META_TIMEZONE).getTime() / 1000),
   }
 }

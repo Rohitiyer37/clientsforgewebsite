@@ -44,18 +44,15 @@ export type UnavailableReason =
   | "min_followers"
   | "missing_permission"
   | "no_data"
-  | "dm_tracking_off"
 
 /** Why a metric cannot be shown. Stored per account by the sync engine. */
 export type AvailabilityMap = Partial<Record<DailyMetricKey, UnavailableReason>>
 
 export const UNAVAILABLE_TEXT: Record<UnavailableReason, string> = {
-  api_removed:
-    "Instagram stopped reporting account profile visits through its API in January 2025, so they can't be shown here.",
+  api_removed: "Instagram's API has stopped reporting this metric, so it can't be shown here.",
   min_followers: "Instagram only reports follows for accounts with 100+ followers.",
   missing_permission: "Reconnect Instagram and allow insights access to see this.",
   no_data: "Instagram hasn't reported this metric for these dates.",
-  dm_tracking_off: "DM tracking isn't on yet. Reconnect Instagram to turn it on.",
 }
 
 const KPI_META: Record<KpiKey, { label: string; description: string }> = {
@@ -69,12 +66,8 @@ const KPI_META: Record<KpiKey, { label: string; description: string }> = {
     label: "Follows",
     description: "Accounts that followed you. Unfollows are not subtracted.",
   },
-  profile_visits: { label: "Profile Visits", description: "Visits to your profile." },
-  bio_link_taps: {
-    label: "Contact Button Taps",
-    description:
-      "Taps on your call, email, text, directions and booking buttons. Instagram's API does not report bio link taps.",
-  },
+  profile_visits: { label: "Profile Visits", description: "Times your profile was visited." },
+  bio_link_taps: { label: "Bio Link Taps", description: "Taps on the link in your bio." },
 }
 
 // ------------------------------------------------------------------ totals
@@ -234,14 +227,12 @@ export interface FunnelInput {
   views: StageInput
   profile_visits: StageInput
   follows: StageInput
-  new_dms: StageInput & { split: { organic: number; automation: number } | null }
 }
 
 const STAGE_LABELS: Record<FunnelStageKey, string> = {
   views: "Views",
   profile_visits: "Profile Visits",
   follows: "Follows",
-  new_dms: "New DMs",
 }
 
 function stageAvailable(s: StageInput): s is StageInput & { value: number } {
@@ -249,7 +240,7 @@ function stageAvailable(s: StageInput): s is StageInput & { value: number } {
 }
 
 /**
- * Builds the four stage funnel. Each stage converts from the nearest stage
+ * Builds the three stage funnel. Each stage converts from the nearest stage
  * above it that Instagram reported, and that pairing is named in the label,
  * so a missing stage never produces a wrong percentage.
  */
@@ -286,7 +277,6 @@ export function buildFunnelStages(input: FunnelInput): FunnelStageDto[] {
       step,
       ofTopPct: key === "views" || !available ? null : ratioPct(value, top),
       dropOff,
-      split: key === "new_dms" && available ? input.new_dms.split : null,
     })
 
     if (available) previous = { key, value: value as number }
@@ -328,39 +318,12 @@ export function detectLeak(
   return worst?.leak ?? null
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-/** "2026-09-10" as "10 Sep 2026". Built by hand so it never varies by ICU version. */
-export function formatDay(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number)
-  return `${d} ${MONTHS[(m ?? 1) - 1]} ${y}`
-}
-
-/** The note shown when DM tracking began inside the selected period. */
-export function dmTrackingNote(
-  trackingStartDate: string | null,
-  range: { from: string; to: string },
-): string | null {
-  if (!trackingStartDate || trackingStartDate <= range.from) return null
-  if (trackingStartDate > range.to) {
-    return `DM tracking started on ${formatDay(trackingStartDate)}, after this period, so DMs in it may be missing.`
-  }
-  return `DM tracking started on ${formatDay(trackingStartDate)}, so earlier DMs may not be counted.`
-}
-
 export function buildFunnel(
   input: FunnelInput,
   benchmarks: Partial<Record<FunnelStepKey, Benchmark>>,
-  opts: { trackingStartDate: string | null; range: { from: string; to: string } },
 ): FunnelDto {
   const stages = buildFunnelStages(input)
-  return {
-    stages,
-    leak: detectLeak(stages, benchmarks),
-    dmTrackingNote: stages.find((s) => s.key === "new_dms")?.available
-      ? dmTrackingNote(opts.trackingStartDate, opts.range)
-      : null,
-  }
+  return { stages, leak: detectLeak(stages, benchmarks) }
 }
 
 /** Turns a KPI into a funnel stage input. */

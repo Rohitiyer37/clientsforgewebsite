@@ -35,7 +35,7 @@ const cards: CardSpec[] = [
   },
   {
     title: "Content Analytics",
-    subtitle: "See how your content turns into followers and DMs.",
+    subtitle: "See how your content turns into views and followers.",
     icon: BarChart3,
     to: "/dashboard/analytics",
   },

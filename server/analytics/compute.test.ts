@@ -8,7 +8,6 @@ import {
   buildFunnelStages,
   buildKpis,
   detectLeak,
-  dmTrackingNote,
   indexRows,
   percentChange,
   rankReels,
@@ -166,11 +165,11 @@ describe("buildKpis", () => {
     expect(likes.unavailableReason).toBe(UNAVAILABLE_TEXT.no_data)
   })
 
-  it("labels contact button taps accurately", () => {
+  it("labels bio link taps", () => {
     const rows = fullRows("2026-09-08", "2026-09-14", { bio_link_taps: 1 })
     const taps = kpi(buildKpis({ rows, range, previous, availability: {} }), "bio_link_taps")
-    expect(taps.label).toBe("Contact Button Taps")
-    expect(taps.description).toMatch(/does not report bio link taps/)
+    expect(taps.label).toBe("Bio Link Taps")
+    expect(taps.total).toBe(7)
   })
 })
 
@@ -213,7 +212,6 @@ describe("funnel", () => {
   const benchmarks: Partial<Record<FunnelStepKey, Benchmark>> = {
     "views->profile_visits": { low: 1, high: 3, hint: "curiosity" },
     "profile_visits->follows": { low: 8, high: 20, hint: "bio" },
-    "follows->new_dms": { low: 5, high: 15, hint: "dm" },
     "views->follows": { low: 0.1, high: 0.5, hint: "follow cta" },
   }
 
@@ -221,11 +219,12 @@ describe("funnel", () => {
     views: { value: 10000, unavailableReason: null },
     profile_visits: { value: 60, unavailableReason: null },
     follows: { value: 12, unavailableReason: null },
-    new_dms: { value: 3, unavailableReason: null, split: { organic: 2, automation: 1 } },
   }
 
   it("computes step conversion, share of top, and drop off", () => {
-    const [views, visits, follows, dms] = buildFunnelStages(all)
+    const stages = buildFunnelStages(all)
+    expect(stages.map((s) => s.key)).toEqual(["views", "profile_visits", "follows"])
+    const [views, visits, follows] = stages
     expect(views?.step).toBeNull()
     expect(views?.ofTopPct).toBeNull()
     expect(visits?.step).toEqual({ fromKey: "views", fromLabel: "Views", pct: 0.6 })
@@ -233,8 +232,6 @@ describe("funnel", () => {
     expect(visits?.dropOff).toEqual({ lost: 9940, pct: 99.4 })
     expect(follows?.step?.pct).toBe(20)
     expect(follows?.ofTopPct).toBeCloseTo(0.12)
-    expect(dms?.step?.pct).toBe(25)
-    expect(dms?.split).toEqual({ organic: 2, automation: 1 })
   })
 
   it("flags the step furthest below its benchmark", () => {
@@ -253,7 +250,6 @@ describe("funnel", () => {
       ...all,
       profile_visits: { value: 500, unavailableReason: null },
       follows: { value: 60, unavailableReason: null },
-      new_dms: { value: 30, unavailableReason: null, split: { organic: 30, automation: 0 } },
     }
     const leak = detectLeak(buildFunnelStages(healthy), benchmarks)
     expect(leak?.toKey).toBe("follows")
@@ -294,16 +290,10 @@ describe("funnel", () => {
     expect(views?.unavailableReason).toBe(UNAVAILABLE_TEXT.no_data)
   })
 
-  it("adds the DM tracking note only when tracking began inside the period", () => {
-    const range = { from: "2026-09-01", to: "2026-09-30" }
-    expect(dmTrackingNote("2026-09-10", range)).toBe(
-      "DM tracking started on 10 Sep 2026, so earlier DMs may not be counted.",
-    )
-    expect(dmTrackingNote("2026-08-01", range)).toBeNull()
-    expect(dmTrackingNote("2026-09-01", range)).toBeNull()
-    expect(dmTrackingNote(null, range)).toBeNull()
-    const funnel = buildFunnel(all, benchmarks, { trackingStartDate: "2026-09-10", range })
-    expect(funnel.dmTrackingNote).toMatch(/10 Sep 2026/)
+  it("builds the funnel with its leak", () => {
+    const funnel = buildFunnel(all, benchmarks)
+    expect(funnel.stages).toHaveLength(3)
+    expect(funnel.leak?.toKey).toBe("profile_visits")
   })
 
   it("maps KPIs to stage inputs", () => {

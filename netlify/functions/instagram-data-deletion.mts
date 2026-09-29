@@ -66,17 +66,8 @@ export default handle("instagram-data-deletion", async (req: Request) => {
     .eq("commenter_id", userId)
   if (commenterError) throw new Error(`Deleting commenter events failed: ${commenterError.message}`)
 
-  // Conversation metadata where this person messaged a client.
-  const { error: conversationError } = await database
-    .from("ig_conversations")
-    .delete()
-    .eq("thread_key", userId)
-  if (conversationError) {
-    throw new Error(`Deleting conversation metadata failed: ${conversationError.message}`)
-  }
-
   // Deleting the account cascades to its automations and all stored
-  // analytics (daily metrics, media, insights, conversations, sync runs).
+  // analytics (daily metrics, media, insights, sync runs).
   if (accounts && accounts.length > 0) {
     const { error: accountError } = await database
       .from("instagram_accounts")

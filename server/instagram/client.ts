@@ -1,9 +1,7 @@
 import type { MediaItem } from "../../shared/instagram"
-import type { BackfillThread } from "../analytics/dm"
 import { MetaApiError, parseMetaError } from "./errors"
 import {
   parseAccountInsights,
-  parseConversations,
   parseMediaInsights,
   parseUsageHeaders,
   type AccountMetricValue,
@@ -37,7 +35,7 @@ export const INSIGHTS_SCOPE = "instagram_business_manage_insights"
 export const INSTAGRAM_SCOPES = [...REQUIRED_SCOPES, INSIGHTS_SCOPE] as const
 
 /** Webhook fields every connected account is subscribed to. */
-export const WEBHOOK_FIELDS = ["comments", "messages"] as const
+export const WEBHOOK_FIELDS = ["comments"] as const
 
 export interface InstagramProfile {
   /** Professional account ID. Matches entry.id in webhooks. */
@@ -239,8 +237,8 @@ export class InstagramClient {
   }
 
   /**
-   * Subscribes this account to the comments and messages webhook fields.
-   * Required per account: without it Meta sends nothing for the account.
+   * Subscribes this account to the comments webhook field, replacing any
+   * other fields. Required per account: without it Meta sends nothing.
    */
   async subscribeToWebhooks(token: string): Promise<void> {
     const body = await this.request<{ success?: boolean }>(
@@ -360,24 +358,5 @@ export class InstagramClient {
     const url = new URL(`${this.graph}/${encodeURIComponent(mediaId)}/insights`)
     url.searchParams.set("metric", metrics.join(","))
     return parseMediaInsights(await this.request<unknown>(url.toString(), { token }))
-  }
-
-  /**
-   * One page of DM conversations with their participants and up to the 20
-   * newest messages' sender and time. Message text is not requested.
-   */
-  async listConversations(
-    token: string,
-    after?: string,
-  ): Promise<{ threads: BackfillThread[]; nextCursor: string | null }> {
-    const url = new URL(`${this.graph}/me/conversations`)
-    url.searchParams.set("platform", "instagram")
-    url.searchParams.set("fields", "participants,updated_time,messages.limit(20){created_time,from}")
-    url.searchParams.set("limit", "25")
-    if (after) url.searchParams.set("after", after)
-    // Nested message reads make this Instagram's slowest endpoint.
-    return parseConversations(
-      await this.request<unknown>(url.toString(), { token, timeoutMs: 30_000 }),
-    )
   }
 }

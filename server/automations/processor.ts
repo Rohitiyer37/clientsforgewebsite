@@ -188,7 +188,6 @@ export async function processCommentEvent(
         )
         await ig.sendPrivateReply(token, event.comment_id, text)
         dmStatus = "sent"
-        // The time is what attributes a later inbound DM to this automation.
         await patch({ dm_status: "sent", dm_sent_at: now().toISOString() })
       } catch (err) {
         dmStatus = "failed"

@@ -1,9 +1,7 @@
 import { z } from "zod"
 
-import type { BackfillThread } from "../analytics/dm"
-
 /**
- * Parsers for Instagram insights, conversations, and rate limit headers.
+ * Parsers for Instagram insights and rate limit headers.
  * Pure and strict: a metric Instagram left out of the response comes back as
  * null, never 0, because Meta documents that unavailable data is returned as
  * an empty set rather than a zero.
@@ -90,71 +88,6 @@ export function parseMediaInsights(body: unknown): Map<string, number | null> {
     out.set(metric.data.name, typeof v === "number" && Number.isFinite(v) ? v : null)
   }
   return out
-}
-
-// ---------------------------------------------------------- conversations
-
-const Participant = z.object({
-  id: z.union([z.string(), z.number()]).transform(String),
-  username: z.string().optional(),
-})
-
-const ConversationMessage = z.object({
-  id: z.string().optional(),
-  created_time: z.string(),
-  from: z
-    .object({ id: z.union([z.string(), z.number()]).transform(String) })
-    .partial()
-    .optional(),
-})
-
-const Conversation = z.object({
-  id: z.string(),
-  participants: z.object({ data: z.array(Participant) }).optional(),
-  messages: z
-    .object({
-      data: z.array(ConversationMessage),
-      paging: z.object({ next: z.string().optional() }).partial().optional(),
-    })
-    .optional(),
-})
-
-const ConversationsBody = z.object({
-  data: z.array(z.unknown()),
-  paging: z
-    .object({
-      cursors: z.object({ after: z.string().optional() }).partial().optional(),
-      next: z.string().optional(),
-    })
-    .partial()
-    .optional(),
-})
-
-export function parseConversations(body: unknown): {
-  threads: BackfillThread[]
-  nextCursor: string | null
-} {
-  const parsed = ConversationsBody.safeParse(body)
-  if (!parsed.success) return { threads: [], nextCursor: null }
-
-  const threads: BackfillThread[] = []
-  for (const raw of parsed.data.data) {
-    const c = Conversation.safeParse(raw)
-    if (!c.success) continue
-    threads.push({
-      participants: (c.data.participants?.data ?? []).map((p) => ({
-        id: p.id,
-        username: p.username ?? null,
-      })),
-      messages: (c.data.messages?.data ?? []).map((m) => ({
-        createdTime: m.created_time,
-        fromId: m.from?.id ?? null,
-      })),
-      hasMoreMessages: Boolean(c.data.messages?.paging?.next),
-    })
-  }
-  const next = parsed.data.paging?.next ? parsed.data.paging.cursors?.after ?? null : null
-  return { threads, nextCursor: next }
 }
 
 // ------------------------------------------------------------ rate limits

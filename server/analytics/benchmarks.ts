@@ -34,24 +34,9 @@ export const FUNNEL_BENCHMARKS: Partial<Record<FunnelStepKey, Benchmark>> = {
     high: 20,
     hint: "People check your profile but don't follow. Tighten your bio and pin posts that show what you do.",
   },
-  "follows->new_dms": {
-    low: 5,
-    high: 15,
-    hint: "New followers aren't starting conversations. Give them a reason to DM you, like a keyword for a free resource.",
-  },
   "views->follows": {
     low: 0.1,
     high: 0.5,
     hint: "Your reels get watched but viewers don't follow. End each reel with a clear reason to follow for more.",
-  },
-  "profile_visits->new_dms": {
-    low: 0.5,
-    high: 2,
-    hint: "Profile visitors aren't messaging you. Add a clear DM call to action to your bio.",
-  },
-  "views->new_dms": {
-    low: 0.01,
-    high: 0.05,
-    hint: "Views aren't turning into conversations. Add a comment keyword or DM prompt to your reels.",
   },
 }

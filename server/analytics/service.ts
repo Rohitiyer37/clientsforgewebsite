@@ -17,7 +17,6 @@ import {
 import { log } from "../log"
 import { FUNNEL_BENCHMARKS } from "./benchmarks"
 import {
-  UNAVAILABLE_TEXT,
   buildFunnel,
   buildKpis,
   rankReels,
@@ -230,7 +229,6 @@ export async function getInstagramAnalytics(
     range: null,
     previousRange: null,
     dayBoundaryNote: null,
-    dmTrackingStartedAt: state?.dm_tracking_started_at ?? null,
     kpis: { ok: false, error: "No data yet." },
     topReels: { ok: false, error: "No data yet." },
     funnel: { ok: false, error: "No data yet." },
@@ -293,38 +291,13 @@ export async function getInstagramAnalytics(
       : buildKpis({ rows, range, previous, availability })
     const byKey = new Map(list.map((k) => [k.key, k]))
 
-    const trackingStarted = state?.dm_tracking_started_at ?? null
-    const hasDmData = Boolean(trackingStarted || state?.dm_backfill_completed_at)
-    let newDms: { value: number | null; unavailableReason: string | null; split: { organic: number; automation: number } | null } = {
-      value: null,
-      unavailableReason: UNAVAILABLE_TEXT.dm_tracking_off,
-      split: null,
-    }
-    if (hasDmData) {
-      const { data: daily, error } = await database.rpc("ig_new_dm_daily", {
-        p_account_id: account.id,
-        p_from: fromInstant.toISOString(),
-        p_to: toInstant.toISOString(),
-        p_tz: tz,
-      })
-      if (error) throw new Error(`New DM lookup failed: ${error.message}`)
-      const organic = (daily ?? []).reduce((n, d) => n + Number(d.organic), 0)
-      const automation = (daily ?? []).reduce((n, d) => n + Number(d.automation), 0)
-      newDms = { value: organic + automation, unavailableReason: null, split: { organic, automation } }
-    }
-
     return buildFunnel(
       {
         views: stageFromKpi(byKey.get("views")),
         profile_visits: stageFromKpi(byKey.get("profile_visits")),
         follows: stageFromKpi(byKey.get("follows")),
-        new_dms: newDms,
       },
       FUNNEL_BENCHMARKS,
-      {
-        trackingStartDate: trackingStarted ? dateInZone(new Date(trackingStarted), tz) : null,
-        range,
-      },
     )
   })
 

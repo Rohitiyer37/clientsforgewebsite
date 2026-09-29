@@ -48,7 +48,7 @@ export type KpiKey = (typeof KPI_KEYS)[number]
 export const REEL_SORT_KEYS = ["views", "likes", "comments", "shares", "saves"] as const
 export type ReelSortKey = (typeof REEL_SORT_KEYS)[number]
 
-export const FUNNEL_STAGE_KEYS = ["views", "profile_visits", "follows", "new_dms"] as const
+export const FUNNEL_STAGE_KEYS = ["views", "profile_visits", "follows"] as const
 export type FunnelStageKey = (typeof FUNNEL_STAGE_KEYS)[number]
 
 export interface DateRange {
@@ -112,7 +112,6 @@ export interface FunnelStageDto {
   ofTopPct: number | null
   /** Change from the nearest available stage above. Negative lost means a gain. */
   dropOff: { lost: number; pct: number | null } | null
-  split: { organic: number; automation: number } | null
 }
 
 export interface FunnelLeakDto {
@@ -130,7 +129,6 @@ export interface FunnelLeakDto {
 export interface FunnelDto {
   stages: FunnelStageDto[]
   leak: FunnelLeakDto | null
-  dmTrackingNote: string | null
 }
 
 export type Section<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -166,7 +164,6 @@ export interface AnalyticsResponse {
   range: (DateRange & { preset: RangePreset | null }) | null
   previousRange: DateRange | null
   dayBoundaryNote: string | null
-  dmTrackingStartedAt: string | null
   kpis: Section<KpiDto[]>
   topReels: Section<TopReelsDto>
   funnel: Section<FunnelDto>

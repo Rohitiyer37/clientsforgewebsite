@@ -355,9 +355,6 @@ export type Database = {
         Row: {
           backfill_completed_at: string | null
           backfill_start_date: string | null
-          dm_backfill_completed_at: string | null
-          dm_backfill_cursor: string | null
-          dm_tracking_started_at: string | null
           insights_status: string
           instagram_account_id: string
           last_synced_at: string | null
@@ -367,9 +364,6 @@ export type Database = {
         Insert: {
           backfill_completed_at?: string | null
           backfill_start_date?: string | null
-          dm_backfill_completed_at?: string | null
-          dm_backfill_cursor?: string | null
-          dm_tracking_started_at?: string | null
           insights_status?: string
           instagram_account_id: string
           last_synced_at?: string | null
@@ -379,44 +373,11 @@ export type Database = {
         Update: {
           backfill_completed_at?: string | null
           backfill_start_date?: string | null
-          dm_backfill_completed_at?: string | null
-          dm_backfill_cursor?: string | null
-          dm_tracking_started_at?: string | null
           insights_status?: string
           instagram_account_id?: string
           last_synced_at?: string | null
           metric_availability?: Json
           updated_at?: string
-        }
-        Relationships: []
-      }
-      ig_conversations: {
-        Row: {
-          created_at: string
-          created_via_automation: boolean
-          first_inbound_at: string | null
-          id: string
-          instagram_account_id: string
-          source: string
-          thread_key: string
-        }
-        Insert: {
-          created_at?: string
-          created_via_automation?: boolean
-          first_inbound_at?: string | null
-          id?: string
-          instagram_account_id: string
-          source: string
-          thread_key: string
-        }
-        Update: {
-          created_at?: string
-          created_via_automation?: boolean
-          first_inbound_at?: string | null
-          id?: string
-          instagram_account_id?: string
-          source?: string
-          thread_key?: string
         }
         Relationships: []
       }
@@ -572,27 +533,6 @@ export type Database = {
       claim_comment_event: {
         Args: { p_event_id: string }
         Returns: Database["public"]["Tables"]["comment_events"]["Row"][]
-      }
-      ig_new_dm_daily: {
-        Args: {
-          p_account_id: string
-          p_from: string
-          p_to: string
-          p_tz: string
-        }
-        Returns: {
-          automation: number
-          day: string
-          organic: number
-        }[]
-      }
-      reconcile_dm_attribution: {
-        Args: { p_account_id: string }
-        Returns: number
-      }
-      record_inbound_dm: {
-        Args: { p_account_id: string; p_at: string; p_thread_key: string }
-        Returns: boolean
       }
       reset_ig_analytics: {
         Args: { p_account_id: string }

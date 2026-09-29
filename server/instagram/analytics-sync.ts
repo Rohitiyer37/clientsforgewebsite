@@ -1,4 +1,3 @@
-import { classifyBackfillThread } from "../analytics/dm"
 import { addDays, dateInZone, enumerateDates, META_TIMEZONE, metaDayWindow } from "../analytics/dates"
 import type { UnavailableReason } from "../analytics/compute"
 import type { Db } from "../db"
@@ -14,8 +13,7 @@ import type { AccountMetricValue, ApiUsage } from "./insights"
  * on the Graph API and can show more history than Meta keeps.
  *
  * A run does as much as it can inside a deadline and records what is left:
- * days without fetched_at, reels whose insights are stale, and the DM backfill
- * cursor. The next run picks up exactly there, so a long first backfill simply
+ * days without fetched_at, and reels whose insights are stale. The next run picks up exactly there, so a long first backfill simply
  * spans a few runs. One failed metric never fails the run: the error is
  * recorded and the rest carries on.
  */
@@ -27,13 +25,12 @@ export const BACKFILL_DAYS = 90
 export const RECENT_REFETCH_DAYS = 3
 export const REEL_RECENT_DAYS = 90
 const REEL_STALE_MS = 7 * 24 * 60 * 60 * 1000
-const PROFILE_PROBE_MS = 7 * 24 * 60 * 60 * 1000
+const LEGACY_PROBE_MS = 7 * 24 * 60 * 60 * 1000
 const MIN_FOLLOWERS_FOR_FOLLOWS = 100
 const CONCURRENCY = 4
 /** Stop starting new requests once Meta reports this much of the quota used. */
 const USAGE_BACKOFF_PCT = 80
 const MAX_MEDIA_PAGES = 20
-const MAX_CONVERSATION_PAGES = 40
 const DEFAULT_DEADLINE_MS = 45_000
 /**
  * Budget for a run inside a Netlify background function (15 minute hard
@@ -55,11 +52,19 @@ const DAY_TOTAL_METRICS = {
   comments: "comments",
   shares: "shares",
   saves: "saves",
-  bio_link_taps: "profile_links_taps",
 } as const
 const FOLLOWS_METRIC = "follows_and_unfollows"
-/** Removed by Meta in January 2025. Probed weekly in case it is served again. */
-const PROFILE_VISITS_METRIC = "profile_views"
+/**
+ * Metrics Meta's current reference no longer lists but the API still serves
+ * (verified live on v25.0 and v26.0, 29 September 2026). Each is probed
+ * weekly and fetched in its own request, so if Meta switches one off it
+ * shows as "Not available" instead of breaking the other metrics.
+ */
+const LEGACY_METRICS = {
+  profile_visits: "profile_views",
+  bio_link_taps: "website_clicks",
+} as const
+type LegacyColumn = keyof typeof LEGACY_METRICS
 
 /** Lifetime reel metrics. Units per Meta's media insights reference. */
 const REEL_METRICS = {
@@ -80,7 +85,6 @@ export type StartResult =
   | { outcome: "busy" }
   | { outcome: "throttled"; retryAfterSeconds: number }
 
-type AccountRow = Row<"instagram_accounts">
 type StateRow = Row<"ig_analytics_state">
 type DailyInsert = Insert<"ig_account_daily_metrics">
 
@@ -96,7 +100,6 @@ export interface SyncSummary {
   daysFetched: number
   daysRemaining: number
   reelsFetched: number
-  conversationsSeeded: number
   errors: string[]
 }
 
@@ -199,7 +202,6 @@ export async function runSync(
     daysFetched: 0,
     daysRemaining: 0,
     reelsFetched: 0,
-    conversationsSeeded: 0,
     errors: [],
   }
   // Set from callbacks, so kept on an object rather than narrowed locals.
@@ -270,13 +272,7 @@ export async function runSync(
       if (error) throw new Error(`Saving sync state failed: ${error.message}`)
     }
 
-    // 1. Live DM tracking. Needs no insights permission, so it goes first.
-    if (!state.dm_tracking_started_at) {
-      const ok = await guard("Turning on DM tracking", () => ig.subscribeToWebhooks(token))
-      if (ok !== null) await saveState({ dm_tracking_started_at: now().toISOString() })
-    }
-
-    // 2. Probe insights access with one small request.
+    // 1. Probe insights access with one small request.
     const today = dateInZone(now(), META_TIMEZONE)
     const yesterday = addDays(today, -1)
     try {
@@ -295,7 +291,7 @@ export async function runSync(
     }
 
     if (!control.stop && !control.insightsDenied) {
-      // 3. Followers now: the only follower count the API offers.
+      // 2. Followers now: the only follower count the API offers.
       const followers = await guard("Follower count", () => ig.getFollowersCount(token))
       if (followers !== null) {
         await upsertDay(database, { instagram_account_id: accountId, date: today, follower_count: followers })
@@ -305,26 +301,26 @@ export async function runSync(
         }
       }
 
-      // 4. Profile visits: probe weekly, since Meta removed the metric.
-      const profile = availability.profile_visits
-      if (!profile || now().getTime() - Date.parse(profile.checkedAt) > PROFILE_PROBE_MS) {
+      // 3. Undocumented metrics: probe weekly whether Meta still serves them.
+      for (const [column, metric] of Object.entries(LEGACY_METRICS)) {
+        const known = availability[column]
+        if (known && now().getTime() - Date.parse(known.checkedAt) <= LEGACY_PROBE_MS) continue
         try {
-          await ig.getAccountInsights(token, {
-            metrics: [PROFILE_VISITS_METRIC],
-            ...metaDayWindow(yesterday),
-          })
-          availability.profile_visits = { reason: null, checkedAt: now().toISOString() }
+          await ig.getAccountInsights(token, { metrics: [metric], ...metaDayWindow(yesterday) })
+          availability[column] = { reason: null, checkedAt: now().toISOString() }
         } catch (err) {
           if (err instanceof MetaApiError && err.kind === "invalid") {
-            availability.profile_visits = { reason: "api_removed", checkedAt: now().toISOString() }
+            availability[column] = { reason: "api_removed", checkedAt: now().toISOString() }
           } else {
-            note("Checking profile visits", err)
+            note(`Checking ${metric}`, err)
           }
         }
       }
-      const fetchProfileVisits = availability.profile_visits?.reason === null
+      const legacy = (Object.keys(LEGACY_METRICS) as LegacyColumn[]).filter(
+        (column) => availability[column]?.reason === null,
+      )
 
-      // 5. Daily account metrics: recent days first, then the backfill.
+      // 4. Daily account metrics: recent days first, then the backfill.
       const startDate = state.backfill_start_date ?? addDays(today, -(BACKFILL_DAYS - 1))
       await saveState({
         backfill_start_date: startDate,
@@ -336,7 +332,7 @@ export async function runSync(
       await pool(
         pending,
         async (date) => {
-          const ok = await fetchDay(ig, token, accountId, date, fetchProfileVisits, database, guard)
+          const ok = await fetchDay(ig, token, accountId, date, legacy, database, guard)
           if (ok) {
             summary.daysFetched++
             summary.daysRemaining--
@@ -348,7 +344,7 @@ export async function runSync(
         await saveState({ backfill_completed_at: now().toISOString() })
       }
 
-      // 6. Media and reel insights.
+      // 5. Media and reel insights.
       if (!outOfTime()) await syncMedia(ig, token, accountId, database, now(), guard, outOfTime)
       if (!outOfTime()) {
         summary.reelsFetched = await syncReelInsights(
@@ -357,22 +353,7 @@ export async function runSync(
       }
     }
 
-    // 7. Seed DM history from the Conversations API (messages permission only).
-    if (!state.dm_backfill_completed_at && !outOfTime()) {
-      const result = await backfillConversations(ig, token, account, state, database, guard, outOfTime)
-      summary.conversationsSeeded = result.seeded
-      await saveState({
-        dm_backfill_cursor: result.cursor,
-        ...(result.done ? { dm_backfill_completed_at: now().toISOString() } : {}),
-      })
-    }
-
-    const { error: reconcileError } = await database.rpc("reconcile_dm_attribution", {
-      p_account_id: accountId,
-    })
-    if (reconcileError) throw new Error(`Attribution reconcile failed: ${reconcileError.message}`)
-
-    // 8. Close out.
+    // 6. Close out.
     const stop = control.stop
     if (stop?.reason === "token") {
       await markAccountExpired(database, accountId, stop.message)
@@ -408,7 +389,6 @@ export async function runSync(
       daysFetched: summary.daysFetched,
       daysRemaining: summary.daysRemaining,
       reelsFetched: summary.reelsFetched,
-      conversationsSeeded: summary.conversationsSeeded,
       errors: summary.errors.length,
       ms: Date.now() - started,
     })
@@ -494,7 +474,7 @@ async function fetchDay(
   token: string,
   accountId: string,
   date: string,
-  withProfileVisits: boolean,
+  legacy: readonly LegacyColumn[],
   database: Db,
   guard: Guard,
 ): Promise<boolean> {
@@ -525,12 +505,16 @@ async function fetchDay(
     complete = false
   }
 
-  if (withProfileVisits) {
-    const visits = await guard(`Profile visits for ${date}`, () =>
-      ig.getAccountInsights(token, { metrics: [PROFILE_VISITS_METRIC], ...window }),
+  if (legacy.length > 0) {
+    const metrics = legacy.map((column) => LEGACY_METRICS[column])
+    const values = await guard(`${metrics.join(", ")} for ${date}`, () =>
+      ig.getAccountInsights(token, { metrics, ...window }),
     )
-    if (visits) row.profile_visits = visits.get(PROFILE_VISITS_METRIC)?.value ?? null
-    else complete = false
+    if (values) {
+      for (const column of legacy) row[column] = values.get(LEGACY_METRICS[column])?.value ?? null
+    } else {
+      complete = false
+    }
   }
 
   if (Object.keys(row).length <= 2) return false
@@ -707,53 +691,4 @@ async function fetchReelMetrics(
     }
   }
   return out
-}
-
-async function backfillConversations(
-  ig: InstagramClient,
-  token: string,
-  account: AccountRow,
-  state: StateRow,
-  database: Db,
-  guard: Guard,
-  outOfTime: () => boolean,
-): Promise<{ seeded: number; cursor: string | null; done: boolean }> {
-  const ownIds = [account.ig_user_id, account.ig_scoped_id].filter((v): v is string => Boolean(v))
-  let cursor = state.dm_backfill_cursor ?? undefined
-  let seeded = 0
-
-  for (let page = 0; page < MAX_CONVERSATION_PAGES; page++) {
-    if (outOfTime()) return { seeded, cursor: cursor ?? null, done: false }
-    const result = await guard("Reading DM history", () => ig.listConversations(token, cursor))
-    if (!result) return { seeded, cursor: cursor ?? null, done: false }
-
-    const rows: Insert<"ig_conversations">[] = []
-    for (const thread of result.threads) {
-      const decision = classifyBackfillThread(thread, ownIds, account.username)
-      if (decision.kind !== "conversation") continue
-      rows.push({
-        instagram_account_id: account.id,
-        thread_key: decision.threadKey,
-        first_inbound_at: decision.firstInboundAt?.toISOString() ?? null,
-        source: "backfill",
-      })
-    }
-    if (rows.length > 0) {
-      // Rows the webhook already recorded win: they have the exact time.
-      const { data, error } = await database
-        .from("ig_conversations")
-        .upsert(rows, { onConflict: "instagram_account_id,thread_key", ignoreDuplicates: true })
-        .select("id")
-      if (error) throw new Error(`Saving DM history failed: ${error.message}`)
-      seeded += data?.length ?? 0
-    }
-
-    if (!result.nextCursor) return { seeded, cursor: null, done: true }
-    cursor = result.nextCursor
-    await database
-      .from("ig_analytics_state")
-      .update({ dm_backfill_cursor: cursor })
-      .eq("instagram_account_id", account.id)
-  }
-  return { seeded, cursor: cursor ?? null, done: false }
 }

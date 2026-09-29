@@ -23,11 +23,9 @@ export default function PrivacyPolicy() {
     >
       <LegalSection title="Who this applies to">
         <p>
-          It covers three groups: our clients, who sign in to the Clientsforge workspace and
-          connect an Instagram professional account; people who comment on a client's Instagram
-          posts, whose comments our automation reads and responds to on the client's behalf; and
-          people who send a client a direct message, whose conversation metadata (not the message
-          itself) we record for the client's analytics.
+          It covers two groups: our clients, who sign in to the Clientsforge workspace and connect
+          an Instagram professional account, and people who comment on a client's Instagram posts,
+          whose comments our automation reads and responds to on the client's behalf.
         </p>
       </LegalSection>
 
@@ -65,19 +63,13 @@ export default function PrivacyPolicy() {
         <ul>
           <li>
             <strong>Account insights:</strong> daily totals Instagram reports for the account, such
-            as views, reach, likes, comments, shares, saves, follows, contact button taps, and the
-            follower count.
+            as views, reach, likes, comments, shares, saves, follows, profile visits, bio link
+            taps, and the follower count.
           </li>
           <li>
             <strong>Post insights:</strong> for the client's posts and reels, the post ID, type,
             caption, link, thumbnail, publish time, and totals such as views, reach, likes,
             comments, shares, saves, and average watch time.
-          </li>
-          <li>
-            <strong>Direct message metadata:</strong> when someone messages the client, the
-            sender's Instagram scoped user ID and the time of their first message, and whether an
-            automation messaged them first. We do not store message text or attachments, and we do
-            not read them.
           </li>
         </ul>
       </LegalSection>
@@ -93,7 +85,7 @@ export default function PrivacyPolicy() {
           <li>To prevent duplicate messages and to retry messages that failed.</li>
           <li>
             To show the client analytics about their own account: totals over time, their best
-            performing reels, and how many new conversations their content started.
+            performing reels, and how views turn into profile visits and follows.
           </li>
         </ul>
         <p>
@@ -114,8 +106,7 @@ export default function PrivacyPolicy() {
             connected. Disconnecting deletes the token immediately.
           </li>
           <li>
-            <strong>Analytics</strong> (account and post insights, and direct message metadata)
-            are kept so the client can see their history, until the client asks us to delete them
+            <strong>Analytics</strong> (account and post insights) are kept so the client can see their history, until the client asks us to delete them
             or removes Clientsforge in Instagram, which deletes them.
           </li>
           <li>
@@ -149,7 +140,7 @@ export default function PrivacyPolicy() {
           .
         </p>
         <p>
-          <strong>If you commented on or messaged a client</strong>, or you want anything else
+          <strong>If you commented on a client's post</strong>, or you want anything else
           deleted, email <Placeholder>{LEGAL_CONTACT_EMAIL}</Placeholder> from any address with
           your Instagram username. We delete matching records within 30 days and confirm by email.
         </p>

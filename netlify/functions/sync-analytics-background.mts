@@ -4,7 +4,6 @@ import { z } from "zod"
 import { db } from "../../server/db"
 import { BACKGROUND_DEADLINE_MS, runSync } from "../../server/instagram/analytics-sync"
 import { isAuthorizedCron } from "../../server/jobs/cron-auth"
-import { SYNC_WORKER_PATH } from "../../server/jobs/sync-analytics"
 import { log } from "../../server/log"
 
 const Body = z.object({ runId: z.string().uuid(), accountId: z.string().uuid() })
@@ -15,7 +14,7 @@ const Body = z.object({ runId: z.string().uuid(), accountId: z.string().uuid() }
  * functions call it, with CRON_SECRET; the run must already exist.
  */
 export default async (req: Request): Promise<void> => {
-  if (!isAuthorizedCron(req)) {
+  if (req.method !== "POST" || !isAuthorizedCron(req)) {
     log.warn("sync_worker_unauthorized")
     return
   }
@@ -36,8 +35,8 @@ export default async (req: Request): Promise<void> => {
   }
 }
 
+// Served at /.netlify/functions/sync-analytics-background (SYNC_WORKER_PATH).
+// No custom path: Netlify does not route those to background functions.
 export const config: Config = {
-  path: SYNC_WORKER_PATH,
-  method: "POST",
   background: true,
 }

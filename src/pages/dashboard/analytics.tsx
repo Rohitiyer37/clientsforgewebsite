@@ -14,7 +14,7 @@ interface Platform {
 const platforms: Platform[] = [
   {
     name: "Instagram",
-    subtitle: "Views, top reels, and how your content turns into followers and DMs.",
+    subtitle: "Views, top reels, and how your content turns into followers.",
     icon: Instagram,
     to: "/dashboard/analytics/instagram",
   },
@@ -41,7 +41,7 @@ export default function AnalyticsPlatforms() {
           Content Analytics
         </h1>
         <p className="mt-2 text-[15px] text-fg-muted">
-          See how your content turns into followers and DMs.
+          See how your content turns into views and followers.
         </p>
       </div>
 

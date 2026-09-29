@@ -27,33 +27,11 @@ function StageBar({ stage, index, max }: { stage: FunnelStageDto; index: number;
   }
 
   const width = barWidth(stage.value, max)
-  const split = stage.split
-  if (split && stage.value > 0) {
-    const organicPct = (split.organic / stage.value) * 100
-    return (
-      <div
-        className="mx-auto flex h-12 gap-[2px] overflow-hidden rounded-xl"
-        style={{ width: `${width}%` }}
-        aria-hidden
-      >
-        {split.organic > 0 && (
-          <div className="h-full" style={{ width: `${organicPct}%`, background: CHART.organic }} />
-        )}
-        {split.automation > 0 && (
-          <div
-            className="h-full"
-            style={{ width: `${100 - organicPct}%`, background: CHART.automation }}
-          />
-        )}
-      </div>
-    )
-  }
-
   return (
     <div
       aria-hidden
       className="mx-auto h-12 rounded-xl"
-      style={{ width: `${width}%`, background: CHART.stages[index] ?? CHART.stages[3] }}
+      style={{ width: `${width}%`, background: CHART.stages[index] ?? CHART.stages[2] }}
     />
   )
 }
@@ -139,28 +117,6 @@ function StageRow({
             {stage.ofTopPct !== null && (
               <p className="text-[12px] text-fg-muted">{formatPct(stage.ofTopPct)} of views</p>
             )}
-            {stage.split && (
-              <ul className="mt-1.5 space-y-0.5 text-[12px] text-fg-muted">
-                <li className="flex items-center gap-1.5">
-                  <span
-                    className="h-2.5 w-2.5 rounded-sm"
-                    style={{ background: CHART.organic }}
-                    aria-hidden
-                  />
-                  Organic:
-                  <span className="font-medium text-fg">{formatExact(stage.split.organic)}</span>
-                </li>
-                <li className="flex items-center gap-1.5">
-                  <span
-                    className="h-2.5 w-2.5 rounded-sm"
-                    style={{ background: CHART.automation }}
-                    aria-hidden
-                  />
-                  From automations:
-                  <span className="font-medium text-fg">{formatExact(stage.split.automation)}</span>
-                </li>
-              </ul>
-            )}
           </div>
           <div className="min-w-0 flex-1">
             <StageBar stage={stage} index={index} max={max} />
@@ -189,7 +145,7 @@ export function Funnel({ data }: { data: FunnelDto }) {
       <div id="funnel-heading">
         <SectionHeading
           title="Content funnel"
-          subtitle="How views turn into profile visits, follows, and new conversations."
+          subtitle="How views turn into profile visits and follows."
         />
       </div>
 
@@ -237,9 +193,8 @@ export function Funnel({ data }: { data: FunnelDto }) {
       )}
 
       <div className="space-y-1 text-[12px] leading-relaxed text-fg-muted/80">
-        {data.dmTrackingNote && <p>{data.dmTrackingNote}</p>}
         <p>
-          Profile visits, follows and DMs are account-wide and include traffic from all sources, not
+          Profile visits and follows are account-wide and include traffic from all sources, not
           only reels.
         </p>
         <p>
@@ -256,7 +211,7 @@ export function FunnelSkeleton() {
     <div className="space-y-5">
       <Skeleton className="h-6 w-44" />
       <div className="space-y-4 rounded-3xl border border-white/[0.06] bg-ink-card/50 p-5">
-        {["w-full", "w-3/5", "w-1/3", "w-1/5"].map((w) => (
+        {["w-full", "w-1/2", "w-1/4"].map((w) => (
           <div key={w} className="flex items-center gap-6">
             <Skeleton className="h-10 w-40 shrink-0" />
             <div className="flex flex-1 justify-center">

@@ -105,9 +105,8 @@ export default handle("instagram-callback", async (req: Request) => {
       return back("in_use")
     }
 
-    // Without this subscription Meta never sends comment or message
-    // webhooks, so a "connected" account would silently do nothing. Fail
-    // loudly instead.
+    // Without this subscription Meta never sends comment webhooks, so a
+    // "connected" account would silently do nothing. Fail loudly instead.
     await ig.subscribeToWebhooks(long.accessToken)
 
     const previous = await getAccountForClient(database, client.id)
@@ -147,29 +146,20 @@ export default handle("instagram-callback", async (req: Request) => {
       if (resetError) throw new Error(`Failed to reset analytics: ${resetError.message}`)
     }
 
-    // DM tracking starts now (the messages subscription above succeeded).
     // Insights access is re-checked by the first sync; if Instagram said the
     // permission was left out, the banner shows at once.
     const insightsGranted =
       short.permissions.length === 0 || short.permissions.includes(INSIGHTS_SCOPE)
-    const { data: existingState, error: stateReadError } = await database
-      .from("ig_analytics_state")
-      .select("dm_tracking_started_at")
-      .eq("instagram_account_id", saved.id)
-      .maybeSingle()
-    if (stateReadError) throw new Error(`Analytics state lookup failed: ${stateReadError.message}`)
     const { error: stateError } = await database.from("ig_analytics_state").upsert(
       {
         instagram_account_id: saved.id,
         insights_status: insightsGranted ? "unknown" : "missing_permission",
-        dm_tracking_started_at: existingState?.dm_tracking_started_at ?? new Date().toISOString(),
       },
       { onConflict: "instagram_account_id" },
     )
     if (stateError) throw new Error(`Failed to save analytics state: ${stateError.message}`)
 
-    // First sync right away, in the background worker. Without insights
-    // access it still seeds DM history, then records the missing permission.
+    // First sync right away, in the background worker.
     const first = await startAndDispatch(database, saved.id, "connect", null)
     log.info("instagram_connect_sync", { clientId: client.id, outcome: first.outcome })
 
