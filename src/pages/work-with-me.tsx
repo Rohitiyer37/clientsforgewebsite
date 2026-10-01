@@ -116,7 +116,7 @@ export default function WorkWithMe() {
               transition={{ duration: 0.6 }}
               className="text-sm font-medium uppercase tracking-[0.2em] text-gold"
             >
-              For Coaches and Agency Owners
+              Coaches &amp; Consultants
             </motion.p>
 
             <motion.h1
@@ -129,12 +129,24 @@ export default function WorkWithMe() {
               }}
               className="mx-auto mt-6 max-w-4xl text-balance font-display text-4xl font-bold leading-[1.06] tracking-tight text-fg sm:text-6xl md:text-[68px]"
             >
-              Book an extra{" "}
+              Here’s how to Replace Your Ad Spend with an{" "}
               <span className="font-sans font-medium italic text-gold-gradient">
-                10+ sales calls
-              </span>{" "}
-              using our organic sales systems
+                Organic Content System
+              </span>
             </motion.h1>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.7,
+                delay: 0.18,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+              className="mx-auto mt-6 max-w-2xl text-balance font-display text-xl font-medium leading-snug text-fg-muted sm:text-2xl"
+            >
+              So you sign clients predictably…
+            </motion.h2>
 
             {/* Video */}
             <motion.div
