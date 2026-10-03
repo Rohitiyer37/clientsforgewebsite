@@ -127,11 +127,13 @@ export default function WorkWithMe() {
                 delay: 0.1,
                 ease: [0.22, 1, 0.36, 1],
               }}
-              className="mx-auto mt-6 max-w-4xl text-balance font-display text-4xl font-bold leading-[1.06] tracking-tight text-fg sm:text-6xl md:text-[68px]"
+              className="mx-auto mt-6 max-w-5xl text-balance font-display text-4xl font-normal leading-[1.08] tracking-tight text-fg sm:text-[50px] md:text-[60px]"
             >
-              Here’s how to Replace Your Ad Spend with an{" "}
-              <span className="font-sans font-medium italic text-gold-gradient">
-                Organic Content System
+              Here’s how we can add an extra{" "}
+              <span className="font-sans font-bold italic text-gold-gradient">$20K/mo</span> to your
+              business, using{" "}
+              <span className="font-sans font-bold italic text-gold-gradient">
+                Organic Content
               </span>
             </motion.h1>
 
@@ -145,7 +147,7 @@ export default function WorkWithMe() {
               }}
               className="mx-auto mt-6 max-w-2xl text-balance font-display text-xl font-medium leading-snug text-fg-muted sm:text-2xl"
             >
-              So you sign clients predictably…
+              spending less than 2hrs/week on it
             </motion.h2>
 
             {/* Video */}
